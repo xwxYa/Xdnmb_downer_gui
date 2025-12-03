@@ -126,9 +126,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-.log/*
-.tmp/*
-main.py
+
+# Project specific
+.log/
+.tmp/
 Epub copy.py
 NetworkCache.py
 test.py
