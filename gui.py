@@ -54,7 +54,7 @@ class XdnmbDownloaderGUI:
         cookie_hint.grid(row=1, column=1, sticky=tk.W, padx=5)
 
         # 串ID输入
-        ttk.Label(main_frame, text="串ID:").grid(row=2, column=0, sticky=tk.W, pady=5)
+        ttk.Label(main_frame, text="串ID(或网址):").grid(row=2, column=0, sticky=tk.W, pady=5)
         self.id_entry = ttk.Entry(main_frame, width=50)
         self.id_entry.grid(row=2, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
 
@@ -200,16 +200,18 @@ class XdnmbDownloaderGUI:
         """显示无意义词汇管理窗口"""
         manager_window = tk.Toplevel(self.root)
         manager_window.title("管理无意义词汇表")
-        manager_window.geometry("500x600")
+        manager_window.geometry("500x500")
 
         # 说明文本
         info_frame = ttk.Frame(manager_window, padding="10")
         info_frame.pack(fill=tk.X)
         ttk.Label(info_frame, text="词汇表用于智能过滤功能，只有完全匹配的回复才会被过滤",
                  foreground="blue").pack()
+        ttk.Label(info_frame, text="提示：一个词一行，直接编辑后点击\"保存\"生效",
+                 foreground="gray").pack()
 
         # 词汇列表
-        list_frame = ttk.LabelFrame(manager_window, text="当前词汇表", padding="10")
+        list_frame = ttk.LabelFrame(manager_window, text="当前词汇表（可直接编辑）", padding="10")
         list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
         # 创建滚动文本框显示词汇
@@ -219,32 +221,6 @@ class XdnmbDownloaderGUI:
         # 加载现有词汇
         words = self.content_filter.get_meaningless_words()
         words_text.insert(1.0, '\n'.join(words))
-
-        # 添加词汇框架
-        add_frame = ttk.LabelFrame(manager_window, text="添加新词汇", padding="10")
-        add_frame.pack(fill=tk.X, padx=10, pady=5)
-
-        new_word_entry = ttk.Entry(add_frame, width=30)
-        new_word_entry.pack(side=tk.LEFT, padx=5)
-
-        def add_word():
-            word = new_word_entry.get().strip()
-            if word:
-                self.content_filter.add_custom_word(word)
-                words = self.content_filter.get_meaningless_words()
-                words_text.delete(1.0, tk.END)
-                words_text.insert(1.0, '\n'.join(words))
-                new_word_entry.delete(0, tk.END)
-                self.log(f'已添加词汇: {word}')
-                messagebox.showinfo("成功", f'已添加词汇: {word}')
-
-        ttk.Button(add_frame, text="添加", command=add_word).pack(side=tk.LEFT, padx=5)
-
-        # 删除词汇说明
-        del_frame = ttk.Frame(manager_window, padding="10")
-        del_frame.pack(fill=tk.X, padx=10)
-        ttk.Label(del_frame, text='提示：直接在上方文本框中编辑词汇表，点击"保存"生效',
-                 foreground="gray").pack()
 
         # 按钮框架
         btn_frame = ttk.Frame(manager_window, padding="10")
@@ -440,11 +416,25 @@ class XdnmbDownloaderGUI:
             messagebox.showerror("错误", "请先设置Cookie")
             return
 
-        # 获取串ID
+        # 获取串ID（支持直接输入ID或网址）
+        id_input = self.id_entry.get().strip()
         try:
-            thread_id = int(self.id_entry.get().strip())
+            # 尝试从网址中提取ID
+            if 'nmbxd1.com/t/' in id_input or 'nmb' in id_input and '/t/' in id_input:
+                # 提取 /t/ 后面的数字
+                import re
+                match = re.search(r'/t/(\d+)', id_input)
+                if match:
+                    thread_id = int(match.group(1))
+                    self.log(f"从网址中识别到串ID: {thread_id}")
+                else:
+                    messagebox.showerror("错误", "无法从网址中提取串ID")
+                    return
+            else:
+                # 直接解析为数字
+                thread_id = int(id_input)
         except ValueError:
-            messagebox.showerror("错误", "请输入有效的串ID（数字）")
+            messagebox.showerror("错误", "请输入有效的串ID（数字）或网址")
             return
 
         # 获取输出格式
