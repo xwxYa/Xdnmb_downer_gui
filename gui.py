@@ -95,7 +95,7 @@ class XdnmbDownloaderGUI:
         self.filter_smart_var = tk.BooleanVar(value=False)
         self.filter_manual_var = tk.BooleanVar(value=False)
 
-        ttk.Checkbutton(filter_frame, text="自动过滤短回复（≤25字符且无图片）",
+        ttk.Checkbutton(filter_frame, text="自动过滤短回复（≤25字且无图片）",
                        variable=self.filter_auto_var).grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
 
         ttk.Checkbutton(filter_frame, text="智能过滤无意义回复（fy、mark、jmjp等）",
@@ -311,7 +311,7 @@ class XdnmbDownloaderGUI:
             cand = candidates[current_index[0]]
             progress_label.config(text=f'第 {current_index[0] + 1} / {len(candidates)} 条')
 
-            reason_text = "短回复（≤25字符且无图片）" if cand['reason'] == 'short' else "无意义回复"
+            reason_text = "短回复（≤25字且无图片）" if cand['reason'] == 'short' else "无意义回复"
             reason_label.config(text=f'标记原因: {reason_text}')
 
             content_text.delete(1.0, tk.END)
@@ -363,7 +363,7 @@ class XdnmbDownloaderGUI:
 
         # 1. 应用自动过滤（短回复）
         if filter_options.get('auto', False):
-            self.log("应用自动过滤：短回复（≤25字符且无图片）")
+            self.log("应用自动过滤：短回复（≤25字且无图片）")
             filtered_replies, info = self.content_filter.filter_auto(filtered_replies, max_length=25)
             self.log(f"  - 自动过滤了 {info['filtered']} 条短回复")
 
