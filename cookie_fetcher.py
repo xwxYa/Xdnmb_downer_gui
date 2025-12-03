@@ -1,6 +1,8 @@
 """
 Cookie自动获取模块
-使用Selenium自动打开浏览器，让用户登录后自动获取Cookie
+支持两种方式：
+1. 直接从浏览器读取已有的cookies（推荐）
+2. 使用Selenium自动打开浏览器
 """
 import time
 import os
@@ -9,6 +11,7 @@ class CookieFetcher:
     def __init__(self):
         self.driver = None
         self.use_selenium = self._check_selenium()
+        self.use_browser_cookie3 = self._check_browser_cookie3()
 
     def _check_selenium(self):
         """检查是否安装了selenium"""
@@ -18,10 +21,86 @@ class CookieFetcher:
         except ImportError:
             return False
 
+    def _check_browser_cookie3(self):
+        """检查是否安装了browser_cookie3"""
+        try:
+            import browser_cookie3
+            return True
+        except ImportError:
+            return False
+
+    def fetch_cookie_from_browser(self, callback=None):
+        """
+        直接从浏览器读取Cookie（推荐方式）
+        不需要打开浏览器，直接读取已登录的cookies
+        """
+        if not self.use_browser_cookie3:
+            raise Exception("未安装browser_cookie3库")
+
+        try:
+            import browser_cookie3
+
+            if callback:
+                callback("正在从浏览器读取Cookie...")
+
+            # 目标域名
+            domain = 'nmbxd1.com'
+
+            # 尝试从不同浏览器读取
+            browsers = [
+                ('Chrome', browser_cookie3.chrome),
+                ('Edge', browser_cookie3.edge),
+                ('Firefox', browser_cookie3.firefox),
+                ('Chromium', browser_cookie3.chromium),
+            ]
+
+            phpsessid = None
+            userhash = None
+            success_browser = None
+
+            for browser_name, browser_func in browsers:
+                try:
+                    if callback:
+                        callback(f"尝试从 {browser_name} 读取...")
+
+                    cookies = browser_func(domain_name=domain)
+
+                    # 提取需要的cookies
+                    for cookie in cookies:
+                        if cookie.name == 'PHPSESSID':
+                            phpsessid = cookie.value
+                        elif cookie.name == 'userhash':
+                            userhash = cookie.value
+
+                    if phpsessid and userhash:
+                        success_browser = browser_name
+                        break
+
+                except Exception as e:
+                    # 该浏览器读取失败，尝试下一个
+                    continue
+
+            if phpsessid and userhash:
+                cookie_str = f"PHPSESSID={phpsessid} userhash={userhash}"
+                if callback:
+                    callback(f"成功从 {success_browser} 读取Cookie！")
+                return cookie_str
+            else:
+                raise Exception(
+                    "未能从浏览器读取到X岛的Cookie。\n"
+                    "请确认：\n"
+                    "1. 已在浏览器中登录X岛匿名版\n"
+                    "2. 浏览器已完全关闭（某些浏览器需要关闭后才能读取）\n"
+                    "3. 如仍无法读取，请使用\"手动获取\"或联系开发者"
+                )
+
+        except Exception as e:
+            raise e
+
     def fetch_cookie_auto(self, callback=None):
         """
-        自动打开浏览器获取Cookie
-        callback: 回调函数，用于更新GUI状态
+        自动打开浏览器获取Cookie（备用方式）
+        需要用户在打开的浏览器中重新登录
         """
         if not self.use_selenium:
             raise Exception("未安装selenium库，请运行: pip install selenium")

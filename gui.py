@@ -180,19 +180,22 @@ class XdnmbDownloaderGUI:
             messagebox.showwarning("警告", "正在下载中，请等待下载完成")
             return
 
-        # 检查selenium是否安装
-        if not self.cookie_fetcher.use_selenium:
+        # 优先尝试从浏览器读取
+        if not self.cookie_fetcher.use_browser_cookie3:
             result = messagebox.askyesno(
-                "缺少依赖",
-                "自动获取Cookie需要安装selenium库。\n\n是否现在安装？\n\n（将执行: pip install selenium）"
+                "推荐安装",
+                "建议安装 browser_cookie3 库，可以直接从浏览器读取Cookie。\n\n"
+                "优点：不需要打开浏览器，不需要重新登录！\n\n"
+                "是否现在安装？\n\n"
+                "（将执行: pip install browser-cookie3）"
             )
             if result:
-                self.log("正在安装selenium...")
+                self.log("正在安装browser_cookie3...")
                 import subprocess
                 try:
-                    subprocess.check_call([sys.executable, "-m", "pip", "install", "selenium"])
-                    self.log('selenium安装成功，请重新点击"自动获取"按钮')
-                    messagebox.showinfo("成功", 'selenium已安装，请重新点击"自动获取"按钮')
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", "browser-cookie3"])
+                    self.log('browser_cookie3安装成功，请重新点击"自动获取"按钮')
+                    messagebox.showinfo("成功", 'browser_cookie3已安装，请重新点击"自动获取"按钮')
                     # 重新初始化fetcher
                     self.cookie_fetcher = CookieFetcher()
                 except Exception as e:
@@ -217,11 +220,11 @@ class XdnmbDownloaderGUI:
         try:
             self.log("="*50)
             self.log("开始自动获取Cookie...")
-            self.log("即将打开浏览器，请在浏览器中登录X岛匿名版")
-            self.log("登录成功后，Cookie会自动获取并填入")
+            self.log("正在从浏览器读取已保存的Cookie...")
+            self.log("提示：如果读取失败，请确保已在浏览器中登录X岛")
 
-            # 调用cookie_fetcher获取Cookie
-            cookie_str = self.cookie_fetcher.fetch_cookie_auto(callback=callback)
+            # 调用cookie_fetcher从浏览器读取Cookie
+            cookie_str = self.cookie_fetcher.fetch_cookie_from_browser(callback=callback)
 
             # 将Cookie填入输入框
             self.cookie_entry.delete(0, tk.END)
