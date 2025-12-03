@@ -708,7 +708,7 @@ class XdnmbDownloaderGUI:
 
         # 配置权重
         sub_frame.columnconfigure(0, weight=1)
-        sub_frame.rowconfigure(1, weight=1)
+        sub_frame.rowconfigure(2, weight=1)  # 订阅列表区域可扩展
 
         # UUID输入区
         uuid_frame = ttk.LabelFrame(sub_frame, text="订阅UUID", padding="10")
@@ -725,9 +725,43 @@ class XdnmbDownloaderGUI:
         ttk.Button(btn_frame, text="获取订阅列表", command=self.fetch_subscription_list).grid(row=0, column=0, padx=2)
         ttk.Button(btn_frame, text="UUID获取教程", command=self.show_uuid_help).grid(row=0, column=1, padx=2)
 
+        # 下载设置区（输出格式、下载模式、内容过滤）
+        settings_frame = ttk.LabelFrame(sub_frame, text="下载设置", padding="10")
+        settings_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
+
+        # 输出格式（使用单串下载的变量，共享设置）
+        format_label = ttk.Label(settings_frame, text="输出格式:")
+        format_label.grid(row=0, column=0, sticky=tk.W, padx=5)
+
+        format_checks_frame = ttk.Frame(settings_frame)
+        format_checks_frame.grid(row=0, column=1, sticky=tk.W, padx=5)
+        ttk.Checkbutton(format_checks_frame, text="EPUB", variable=self.epub_var).pack(side=tk.LEFT, padx=5)
+        ttk.Checkbutton(format_checks_frame, text="TXT", variable=self.txt_var).pack(side=tk.LEFT, padx=5)
+        ttk.Checkbutton(format_checks_frame, text="Markdown(在线)", variable=self.md_online_var).pack(side=tk.LEFT, padx=5)
+        ttk.Checkbutton(format_checks_frame, text="Markdown(本地)", variable=self.md_local_var).pack(side=tk.LEFT, padx=5)
+
+        # 下载模式（使用单串下载的变量，共享设置）
+        mode_label = ttk.Label(settings_frame, text="下载模式:")
+        mode_label.grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
+
+        mode_radio_frame = ttk.Frame(settings_frame)
+        mode_radio_frame.grid(row=1, column=1, sticky=tk.W, padx=5, pady=5)
+        ttk.Radiobutton(mode_radio_frame, text="所有回复", variable=self.download_mode_var, value="all").pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(mode_radio_frame, text="只下载PO", variable=self.download_mode_var, value="po").pack(side=tk.LEFT, padx=5)
+
+        # 内容过滤（使用单串下载的变量，共享设置）
+        filter_label = ttk.Label(settings_frame, text="内容过滤:")
+        filter_label.grid(row=2, column=0, sticky=tk.W, padx=5)
+
+        filter_checks_frame = ttk.Frame(settings_frame)
+        filter_checks_frame.grid(row=2, column=1, sticky=tk.W, padx=5)
+        ttk.Checkbutton(filter_checks_frame, text="自动过滤短回复", variable=self.filter_auto_var).pack(side=tk.LEFT, padx=5)
+        ttk.Checkbutton(filter_checks_frame, text="智能过滤", variable=self.filter_smart_var).pack(side=tk.LEFT, padx=5)
+        ttk.Checkbutton(filter_checks_frame, text="手动审核", variable=self.filter_manual_var).pack(side=tk.LEFT, padx=5)
+
         # 订阅列表显示区
         list_frame = ttk.LabelFrame(sub_frame, text="订阅串列表", padding="10")
-        list_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        list_frame.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
         list_frame.columnconfigure(0, weight=1)
         list_frame.rowconfigure(0, weight=1)
 
@@ -747,9 +781,27 @@ class XdnmbDownloaderGUI:
         canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
 
+        # 分页控制区
+        pagination_frame = ttk.Frame(sub_frame)
+        pagination_frame.grid(row=3, column=0, pady=5)
+
+        ttk.Label(pagination_frame, text="每页显示:").pack(side=tk.LEFT, padx=5)
+        self.page_size_var = tk.IntVar(value=25)
+        for size in [10, 25, 50]:
+            ttk.Radiobutton(pagination_frame, text=f"{size}条", variable=self.page_size_var,
+                          value=size, command=self.on_page_size_change).pack(side=tk.LEFT, padx=2)
+
+        ttk.Separator(pagination_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
+
+        self.page_label = ttk.Label(pagination_frame, text="第 1 页，共 1 页")
+        self.page_label.pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(pagination_frame, text="◀ 上一页", command=self.prev_page).pack(side=tk.LEFT, padx=2)
+        ttk.Button(pagination_frame, text="下一页 ▶", command=self.next_page).pack(side=tk.LEFT, padx=2)
+
         # 批量操作按钮
         batch_btn_frame = ttk.Frame(sub_frame)
-        batch_btn_frame.grid(row=2, column=0, pady=5)
+        batch_btn_frame.grid(row=4, column=0, pady=5)
 
         ttk.Button(batch_btn_frame, text="全选", command=self.select_all_subscriptions).grid(row=0, column=0, padx=5)
         ttk.Button(batch_btn_frame, text="反选", command=self.invert_selection).grid(row=0, column=1, padx=5)
@@ -760,6 +812,8 @@ class XdnmbDownloaderGUI:
         # 存储订阅数据
         self.subscription_data = []  # 存储获取的订阅列表
         self.subscription_vars = []  # 存储勾选框变量
+        self.current_page = 1  # 当前页码
+        self.total_pages = 1  # 总页数
 
     def show_uuid_help(self):
         """显示UUID获取教程"""
@@ -841,6 +895,11 @@ class XdnmbDownloaderGUI:
 
             self.log(f"成功获取 {len(self.subscription_data)} 个订阅串")
 
+            # 重置分页状态
+            self.current_page = 1
+            if hasattr(self, '_all_subscription_vars'):
+                delattr(self, '_all_subscription_vars')
+
             # 在主线程中更新GUI
             self.root.after(0, self.display_subscription_list)
 
@@ -852,21 +911,48 @@ class XdnmbDownloaderGUI:
             messagebox.showerror("错误", f"获取订阅列表失败: {e}")
 
     def display_subscription_list(self):
-        """显示订阅列表"""
+        """显示订阅列表（支持分页）"""
         # 清空现有列表
         for widget in self.subscription_list_frame.winfo_children():
             widget.destroy()
-        self.subscription_vars = []
 
         if not self.subscription_data:
             ttk.Label(self.subscription_list_frame, text="没有订阅内容",
                      foreground="gray", font=("Arial", 10)).pack(pady=20)
+            self.subscription_vars = []
+            self.current_page = 1
+            self.total_pages = 1
+            self.page_label.config(text="第 1 页，共 1 页")
             return
 
-        # 为每个串创建实际的勾选框
-        for idx, thread in enumerate(self.subscription_data):
-            var = tk.BooleanVar(value=False)
-            self.subscription_vars.append((var, thread))
+        # 计算分页
+        page_size = self.page_size_var.get()
+        total_items = len(self.subscription_data)
+        self.total_pages = (total_items + page_size - 1) // page_size
+
+        # 确保当前页在有效范围内
+        if self.current_page > self.total_pages:
+            self.current_page = self.total_pages
+        if self.current_page < 1:
+            self.current_page = 1
+
+        # 计算当前页的数据范围
+        start_idx = (self.current_page - 1) * page_size
+        end_idx = min(start_idx + page_size, total_items)
+        current_page_data = self.subscription_data[start_idx:end_idx]
+
+        # 更新分页标签
+        self.page_label.config(text=f"第 {self.current_page} 页，共 {self.total_pages} 页 (共{total_items}条)")
+
+        # 重建subscription_vars列表（保留所有数据的var，但只显示当前页）
+        if not hasattr(self, '_all_subscription_vars') or len(self._all_subscription_vars) != len(self.subscription_data):
+            self._all_subscription_vars = [(tk.BooleanVar(value=False), thread) for thread in self.subscription_data]
+
+        self.subscription_vars = self._all_subscription_vars
+
+        # 为当前页的串创建显示
+        for idx in range(start_idx, end_idx):
+            var, thread = self._all_subscription_vars[idx]
 
             # 创建每个串的容器Frame
             item_frame = ttk.Frame(self.subscription_list_frame)
@@ -881,15 +967,15 @@ class XdnmbDownloaderGUI:
             # 创建勾选框
             cb = ttk.Checkbutton(item_frame, variable=var,
                                 command=self.update_batch_download_btn)
-            cb.grid(row=0, column=0, rowspan=3, sticky=tk.N, padx=5)
+            cb.grid(row=0, column=0, rowspan=2, sticky=tk.N, padx=5)
 
             # 显示串信息
             info_text = f"[{thread_id}] {title}"
             ttk.Label(item_frame, text=info_text, font=("Arial", 10, "bold"),
                      wraplength=600).grid(row=0, column=1, sticky=tk.W, pady=2)
 
-            preview_text = f"内容预览: {preview}"
-            ttk.Label(item_frame, text=preview_text, foreground="gray",
+            # 直接显示预览内容，不要"内容预览:"标签
+            ttk.Label(item_frame, text=preview, foreground="gray",
                      wraplength=600).grid(row=1, column=1, sticky=tk.W, pady=2)
 
             meta_text = f"回复数: {reply_count}  |  最后回复: {time_str}"
@@ -902,8 +988,25 @@ class XdnmbDownloaderGUI:
 
         self.update_batch_download_btn()
 
+    def prev_page(self):
+        """上一页"""
+        if self.current_page > 1:
+            self.current_page -= 1
+            self.display_subscription_list()
+
+    def next_page(self):
+        """下一页"""
+        if self.current_page < self.total_pages:
+            self.current_page += 1
+            self.display_subscription_list()
+
+    def on_page_size_change(self):
+        """每页显示数量改变"""
+        self.current_page = 1  # 重置到第一页
+        self.display_subscription_list()
+
     def select_all_subscriptions(self):
-        """全选订阅"""
+        """全选订阅（全选所有页的串，不只是当前页）"""
         for var, _ in self.subscription_vars:
             var.set(True)
         self.update_batch_download_btn()
