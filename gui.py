@@ -12,7 +12,7 @@ from content_filter import ContentFilter
 class XdnmbDownloaderGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Xdnmb下载器 GUI版")
+        self.root.title("Xdnmb下载工具")
         self.root.geometry("900x750")
         self.root.minsize(850, 650)  # 设置最小窗口尺寸
         self.root.resizable(True, True)
@@ -30,22 +30,28 @@ class XdnmbDownloaderGUI:
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # 创建两个Tab页
+        # 创建三个Tab页
         self.single_tab = ttk.Frame(self.notebook, padding="10")
         self.batch_tab = ttk.Frame(self.notebook, padding="10")
+        self.migrate_tab = ttk.Frame(self.notebook, padding="10")
 
         self.notebook.add(self.single_tab, text="单串下载")
         self.notebook.add(self.batch_tab, text="订阅批量下载")
+        self.notebook.add(self.migrate_tab, text="订阅迁移")
 
         # 配置Tab内部权重
         self.single_tab.columnconfigure(1, weight=1)
         self.batch_tab.columnconfigure(0, weight=1)
+        self.migrate_tab.columnconfigure(0, weight=1)
 
         # 创建单串下载Tab内容
         self.create_single_download_tab()
 
         # 创建订阅批量下载Tab内容
         self.create_subscription_tab(self.batch_tab)
+
+        # 创建订阅迁移Tab内容
+        self.create_migrate_tab(self.migrate_tab)
 
     def create_single_download_tab(self):
         """创建单串下载Tab页面"""
@@ -774,32 +780,32 @@ class XdnmbDownloaderGUI:
         list_frame.rowconfigure(0, weight=1)
 
         # 创建Canvas和Scrollbar用于滚动显示勾选框列表
-        canvas = tk.Canvas(list_frame, borderwidth=0, background="#ffffff")
-        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=canvas.yview)
-        self.subscription_list_frame = ttk.Frame(canvas)
+        self.subscription_canvas = tk.Canvas(list_frame, borderwidth=0, background="#ffffff")
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.subscription_canvas.yview)
+        self.subscription_list_frame = ttk.Frame(self.subscription_canvas)
 
         self.subscription_list_frame.bind(
             "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            lambda e: self.subscription_canvas.configure(scrollregion=self.subscription_canvas.bbox("all"))
         )
 
-        canvas.create_window((0, 0), window=self.subscription_list_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        self.subscription_canvas.create_window((0, 0), window=self.subscription_list_frame, anchor="nw")
+        self.subscription_canvas.configure(yscrollcommand=scrollbar.set)
 
         # 绑定鼠标滚轮事件（仅在canvas区域内生效）
         def on_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            self.subscription_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
 
         def bind_mousewheel(event):
-            canvas.bind_all("<MouseWheel>", on_mousewheel)
+            self.subscription_canvas.bind_all("<MouseWheel>", on_mousewheel)
 
         def unbind_mousewheel(event):
-            canvas.unbind_all("<MouseWheel>")
+            self.subscription_canvas.unbind_all("<MouseWheel>")
 
-        canvas.bind("<Enter>", bind_mousewheel)
-        canvas.bind("<Leave>", unbind_mousewheel)
+        self.subscription_canvas.bind("<Enter>", bind_mousewheel)
+        self.subscription_canvas.bind("<Leave>", unbind_mousewheel)
 
-        canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.subscription_canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
 
         # 分页控制区
@@ -836,6 +842,368 @@ class XdnmbDownloaderGUI:
         self.subscription_vars = []  # 存储勾选框变量
         self.current_page = 1  # 当前页码
         self.total_pages = 1  # 总页数
+
+    # ==================== 订阅迁移功能 ====================
+
+    def create_migrate_tab(self, parent):
+        """创建订阅迁移Tab页面"""
+        migrate_frame = parent
+
+        # 配置权重
+        migrate_frame.columnconfigure(0, weight=1)
+        migrate_frame.rowconfigure(2, weight=1)  # 订阅列表区域可扩展
+
+        # UUID输入区
+        uuid_frame = ttk.LabelFrame(migrate_frame, text="UUID设置", padding="10")
+        uuid_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=5)
+        uuid_frame.columnconfigure(1, weight=1)
+        uuid_frame.columnconfigure(3, weight=1)
+
+        ttk.Label(uuid_frame, text="源UUID:").grid(row=0, column=0, sticky=tk.W, padx=5)
+        self.migrate_source_uuid_entry = ttk.Entry(uuid_frame)
+        self.migrate_source_uuid_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=5)
+
+        ttk.Label(uuid_frame, text="目标UUID:").grid(row=0, column=2, sticky=tk.W, padx=5)
+        self.migrate_target_uuid_entry = ttk.Entry(uuid_frame)
+        self.migrate_target_uuid_entry.grid(row=0, column=3, sticky=(tk.W, tk.E), padx=5)
+
+        ttk.Button(uuid_frame, text="获取源订阅列表", command=self.fetch_migrate_source_list).grid(row=0, column=4, padx=5)
+
+        # 说明文本
+        info_frame = ttk.Frame(migrate_frame)
+        info_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
+        ttk.Label(info_frame, text="说明：从源UUID选择订阅串，复制添加到目标UUID（自动去重，源UUID保留）",
+                 foreground="blue").pack()
+
+        # 订阅列表显示区
+        list_frame = ttk.LabelFrame(migrate_frame, text="源订阅列表", padding="10")
+        list_frame.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        list_frame.columnconfigure(0, weight=1)
+        list_frame.rowconfigure(0, weight=1)
+
+        # 创建Canvas和Scrollbar
+        self.migrate_canvas = tk.Canvas(list_frame, borderwidth=0, background="#ffffff")
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.migrate_canvas.yview)
+        self.migrate_list_frame = ttk.Frame(self.migrate_canvas)
+
+        self.migrate_list_frame.bind(
+            "<Configure>",
+            lambda e: self.migrate_canvas.configure(scrollregion=self.migrate_canvas.bbox("all"))
+        )
+
+        self.migrate_canvas.create_window((0, 0), window=self.migrate_list_frame, anchor="nw")
+        self.migrate_canvas.configure(yscrollcommand=scrollbar.set)
+
+        # 绑定鼠标滚轮事件
+        def on_mousewheel(event):
+            self.migrate_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+
+        def bind_mousewheel(event):
+            self.migrate_canvas.bind_all("<MouseWheel>", on_mousewheel)
+
+        def unbind_mousewheel(event):
+            self.migrate_canvas.unbind_all("<MouseWheel>")
+
+        self.migrate_canvas.bind("<Enter>", bind_mousewheel)
+        self.migrate_canvas.bind("<Leave>", unbind_mousewheel)
+
+        self.migrate_canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+
+        # 分页控制区
+        pagination_frame = ttk.Frame(migrate_frame)
+        pagination_frame.grid(row=3, column=0, pady=5)
+
+        ttk.Label(pagination_frame, text="每页显示:").pack(side=tk.LEFT, padx=5)
+        self.migrate_page_size_var = tk.IntVar(value=25)
+        for size in [10, 25, 50]:
+            ttk.Radiobutton(pagination_frame, text=f"{size}条", variable=self.migrate_page_size_var,
+                          value=size, command=self.on_migrate_page_size_change).pack(side=tk.LEFT, padx=2)
+
+        ttk.Separator(pagination_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
+
+        self.migrate_page_label = ttk.Label(pagination_frame, text="第 1 页，共 1 页")
+        self.migrate_page_label.pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(pagination_frame, text="◀ 上一页", command=self.migrate_prev_page).pack(side=tk.LEFT, padx=2)
+        ttk.Button(pagination_frame, text="下一页 ▶", command=self.migrate_next_page).pack(side=tk.LEFT, padx=2)
+
+        # 批量操作按钮
+        batch_btn_frame = ttk.Frame(migrate_frame)
+        batch_btn_frame.grid(row=4, column=0, pady=5)
+
+        ttk.Button(batch_btn_frame, text="全选当前页", command=self.migrate_select_current_page).grid(row=0, column=0, padx=5)
+        ttk.Button(batch_btn_frame, text="全选所有页", command=self.migrate_select_all_pages).grid(row=0, column=1, padx=5)
+        ttk.Button(batch_btn_frame, text="反选", command=self.migrate_invert_selection).grid(row=0, column=2, padx=5)
+        ttk.Button(batch_btn_frame, text="清空", command=self.migrate_clear_selection).grid(row=0, column=3, padx=5)
+        self.migrate_btn = ttk.Button(batch_btn_frame, text="开始迁移 (已选0个)", command=self.start_migration)
+        self.migrate_btn.grid(row=0, column=4, padx=5)
+
+        # 存储迁移数据
+        self.migrate_data = []
+        self.migrate_vars = []
+        self.migrate_current_page = 1
+        self.migrate_total_pages = 1
+
+    def fetch_migrate_source_list(self):
+        """获取源订阅列表"""
+        source_uuid = self.migrate_source_uuid_entry.get().strip()
+        target_uuid = self.migrate_target_uuid_entry.get().strip()
+
+        if not source_uuid:
+            messagebox.showerror("错误", "请输入源UUID")
+            return
+
+        if not target_uuid:
+            messagebox.showerror("错误", "请输入目标UUID")
+            return
+
+        if source_uuid == target_uuid:
+            messagebox.showerror("错误", "源UUID和目标UUID不能相同")
+            return
+
+        # 在新线程中获取订阅列表
+        fetch_thread = threading.Thread(target=self.fetch_migrate_thread, args=(source_uuid,))
+        fetch_thread.daemon = True
+        fetch_thread.start()
+
+    def fetch_migrate_thread(self, source_uuid):
+        """获取源订阅列表的线程"""
+        try:
+            # 获取Cookie
+            cookie = self.cookie_entry.get().strip()
+            if not cookie:
+                messagebox.showerror("错误", "请先在\"单串下载\"Tab设置Cookie")
+                return
+
+            # 创建Xdnmb实例并获取订阅列表
+            x = Xdnmb(cookie)
+            self.migrate_data = x.get_subscribe_list(source_uuid)
+
+            # 重置分页状态
+            self.migrate_current_page = 1
+            if hasattr(self, '_all_migrate_vars'):
+                delattr(self, '_all_migrate_vars')
+
+            # 在主线程中更新GUI
+            self.root.after(0, self.display_migrate_list)
+            messagebox.showinfo("成功", f"成功获取 {len(self.migrate_data)} 个订阅串")
+
+        except XdnmbException as e:
+            messagebox.showerror("错误", str(e))
+        except Exception as e:
+            messagebox.showerror("错误", f"获取订阅列表失败: {e}")
+
+    def display_migrate_list(self):
+        """显示源订阅列表（支持分页）"""
+        # 清空现有列表
+        for widget in self.migrate_list_frame.winfo_children():
+            widget.destroy()
+
+        if not self.migrate_data:
+            ttk.Label(self.migrate_list_frame, text="没有订阅内容",
+                     foreground="gray", font=("Arial", 10)).pack(pady=20)
+            self.migrate_vars = []
+            self.migrate_current_page = 1
+            self.migrate_total_pages = 1
+            self.migrate_page_label.config(text="第 1 页，共 1 页")
+            return
+
+        # 计算分页
+        page_size = self.migrate_page_size_var.get()
+        total_items = len(self.migrate_data)
+        self.migrate_total_pages = (total_items + page_size - 1) // page_size
+
+        # 确保当前页在有效范围内
+        if self.migrate_current_page > self.migrate_total_pages:
+            self.migrate_current_page = self.migrate_total_pages
+        if self.migrate_current_page < 1:
+            self.migrate_current_page = 1
+
+        # 计算当前页的数据范围
+        start_idx = (self.migrate_current_page - 1) * page_size
+        end_idx = min(start_idx + page_size, total_items)
+
+        # 更新分页标签
+        self.migrate_page_label.config(text=f"第 {self.migrate_current_page} 页，共 {self.migrate_total_pages} 页 (共{total_items}条)")
+
+        # 重建vars列表
+        if not hasattr(self, '_all_migrate_vars') or len(self._all_migrate_vars) != len(self.migrate_data):
+            self._all_migrate_vars = [(tk.BooleanVar(value=False), thread) for thread in self.migrate_data]
+
+        self.migrate_vars = self._all_migrate_vars
+
+        # 动态计算wraplength（canvas宽度 - checkbox和padding的宽度）
+        self.migrate_canvas.update_idletasks()  # 确保获取最新的尺寸
+        canvas_width = self.migrate_canvas.winfo_width()
+        # 减去checkbox宽度(约50) + padding(约80) + scrollbar(约20)
+        dynamic_wraplength = max(400, canvas_width - 150)  # 最小400像素
+
+        # 为当前页的串创建显示
+        for idx in range(start_idx, end_idx):
+            var, thread = self._all_migrate_vars[idx]
+
+            # 创建每个串的容器Frame
+            item_frame = ttk.Frame(self.migrate_list_frame)
+            item_frame.pack(fill=tk.X, padx=5, pady=5)
+
+            thread_id = thread['id']
+            title = thread['title']
+            preview = thread['content_preview']
+            time_str = thread['time']
+
+            # 创建勾选框
+            cb = ttk.Checkbutton(item_frame, variable=var,
+                                command=self.update_migrate_btn)
+            cb.grid(row=0, column=0, rowspan=2, sticky=tk.N, padx=5)
+
+            # 显示串信息
+            display_title = title if title and title != '无标题' else '[无标题]'
+            info_text = f"[{thread_id}] {display_title}"
+            ttk.Label(item_frame, text=info_text, font=("Arial", 10, "bold"),
+                     wraplength=dynamic_wraplength).grid(row=0, column=1, sticky=tk.W, pady=2)
+
+            # 直接显示预览内容
+            ttk.Label(item_frame, text=preview, foreground="gray",
+                     wraplength=dynamic_wraplength).grid(row=1, column=1, sticky=tk.W, pady=2)
+
+            # 显示最后回复时间
+            if time_str:
+                ttk.Label(item_frame, text=f"最后回复: {time_str}", foreground="blue",
+                         font=("Arial", 8)).grid(row=2, column=1, sticky=tk.W, pady=2)
+
+            # 分隔线
+            ttk.Separator(self.migrate_list_frame, orient=tk.HORIZONTAL).pack(
+                fill=tk.X, padx=10, pady=5)
+
+        self.update_migrate_btn()
+
+    def migrate_prev_page(self):
+        """上一页"""
+        if self.migrate_current_page > 1:
+            self.migrate_current_page -= 1
+            self.display_migrate_list()
+
+    def migrate_next_page(self):
+        """下一页"""
+        if self.migrate_current_page < self.migrate_total_pages:
+            self.migrate_current_page += 1
+            self.display_migrate_list()
+
+    def on_migrate_page_size_change(self):
+        """每页显示数量改变"""
+        self.migrate_current_page = 1
+        self.display_migrate_list()
+
+    def migrate_select_current_page(self):
+        """全选当前页"""
+        if not self.migrate_data:
+            return
+
+        page_size = self.migrate_page_size_var.get()
+        start_idx = (self.migrate_current_page - 1) * page_size
+        end_idx = min(start_idx + page_size, len(self.migrate_data))
+
+        for idx in range(start_idx, end_idx):
+            var, _ = self.migrate_vars[idx]
+            var.set(True)
+
+        self.update_migrate_btn()
+
+    def migrate_select_all_pages(self):
+        """全选所有页"""
+        for var, _ in self.migrate_vars:
+            var.set(True)
+        self.update_migrate_btn()
+
+    def migrate_invert_selection(self):
+        """反选"""
+        for var, _ in self.migrate_vars:
+            var.set(not var.get())
+        self.update_migrate_btn()
+
+    def migrate_clear_selection(self):
+        """清空选择"""
+        for var, _ in self.migrate_vars:
+            var.set(False)
+        self.update_migrate_btn()
+
+    def update_migrate_btn(self):
+        """更新迁移按钮文本"""
+        selected_count = sum(1 for var, _ in self.migrate_vars if var.get())
+        self.migrate_btn.config(text=f"开始迁移 (已选{selected_count}个)")
+
+    def start_migration(self):
+        """开始迁移"""
+        selected_threads = [(thread['id'], thread['title']) for var, thread in self.migrate_vars if var.get()]
+
+        if not selected_threads:
+            messagebox.showwarning("警告", "请至少选择一个串进行迁移")
+            return
+
+        source_uuid = self.migrate_source_uuid_entry.get().strip()
+        target_uuid = self.migrate_target_uuid_entry.get().strip()
+
+        if not source_uuid or not target_uuid:
+            messagebox.showerror("错误", "请输入源UUID和目标UUID")
+            return
+
+        if source_uuid == target_uuid:
+            messagebox.showerror("错误", "源UUID和目标UUID不能相同")
+            return
+
+        # 在新线程中执行迁移
+        migrate_thread = threading.Thread(
+            target=self.migration_thread,
+            args=(selected_threads, source_uuid, target_uuid)
+        )
+        migrate_thread.daemon = True
+        migrate_thread.start()
+
+    def migration_thread(self, selected_threads, source_uuid, target_uuid):
+        """迁移线程"""
+        cookie = self.cookie_entry.get().strip()
+        x = Xdnmb(cookie)
+
+        # 获取目标UUID的订阅列表（用于去重）
+        try:
+            target_subscription = x.get_subscribe_list(target_uuid)
+            target_ids = {thread['id'] for thread in target_subscription}
+        except Exception as e:
+            messagebox.showerror("错误", f"获取目标UUID订阅列表失败: {e}")
+            return
+
+        success_count = 0
+        skip_count = 0
+        fail_count = 0
+        failed_list = []
+
+        for thread_id, thread_title in selected_threads:
+            try:
+                # 去重检查
+                if thread_id in target_ids:
+                    skip_count += 1
+                    continue
+
+                # 添加到目标UUID
+                x.add_feed(target_uuid, thread_id)
+                success_count += 1
+
+            except Exception as e:
+                fail_count += 1
+                failed_list.append((thread_id, thread_title, str(e)))
+
+        # 显示统计结果
+        result_msg = f"迁移完成！\n\n成功: {success_count}\n跳过（已存在）: {skip_count}\n失败: {fail_count}"
+
+        if failed_list:
+            result_msg += "\n\n失败的串："
+            for thread_id, thread_title, error in failed_list[:5]:  # 只显示前5个
+                result_msg += f"\n串{thread_id}: {error}"
+            if len(failed_list) > 5:
+                result_msg += f"\n... 还有{len(failed_list) - 5}个失败"
+
+        messagebox.showinfo("迁移完成", result_msg)
 
     def show_uuid_help(self):
         """显示UUID获取教程"""
@@ -972,6 +1340,12 @@ class XdnmbDownloaderGUI:
 
         self.subscription_vars = self._all_subscription_vars
 
+        # 动态计算wraplength（canvas宽度 - checkbox和padding的宽度）
+        self.subscription_canvas.update_idletasks()  # 确保获取最新的尺寸
+        canvas_width = self.subscription_canvas.winfo_width()
+        # 减去checkbox宽度(约50) + padding(约80) + scrollbar(约20)
+        dynamic_wraplength = max(400, canvas_width - 150)  # 最小400像素
+
         # 为当前页的串创建显示
         for idx in range(start_idx, end_idx):
             var, thread = self._all_subscription_vars[idx]
@@ -994,11 +1368,11 @@ class XdnmbDownloaderGUI:
             display_title = title if title and title != '无标题' else '[无标题]'
             info_text = f"[{thread_id}] {display_title}"
             ttk.Label(item_frame, text=info_text, font=("Arial", 10, "bold"),
-                     wraplength=750).grid(row=0, column=1, sticky=tk.W, pady=2)
+                     wraplength=dynamic_wraplength).grid(row=0, column=1, sticky=tk.W, pady=2)
 
             # 直接显示预览内容
             ttk.Label(item_frame, text=preview, foreground="gray",
-                     wraplength=750).grid(row=1, column=1, sticky=tk.W, pady=2)
+                     wraplength=dynamic_wraplength).grid(row=1, column=1, sticky=tk.W, pady=2)
 
             # 显示最后回复时间
             if time_str:

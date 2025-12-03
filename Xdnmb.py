@@ -36,9 +36,16 @@ class Xdnmb():
         i = 1
         t = single(i)
         c = self.cache("subscribe")
-        if c:
+
+        # 如果第一页就是空的，直接返回空列表
+        if not t:
+            return []
+
+        # 检查缓存
+        if c and len(c) > 0:
             if c[0]["id"] == t[0]["id"]:
                 return c
+
         while t != []:
             fin += t
             i += 1
@@ -91,6 +98,70 @@ class Xdnmb():
             formatted_list.append(formatted)
 
         return formatted_list
+
+    def add_feed(self, uuid, tid):
+        """
+        添加订阅
+
+        Args:
+            uuid: 用户订阅UUID
+            tid: 串ID（整数）
+
+        Raises:
+            XdnmbException: 添加失败时抛出
+        """
+        import json
+        url = f"https://api.nmb.best/api/addFeed?uuid={uuid}&tid={tid}"
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+
+        r = self.s.post(url, headers=headers)
+        if r.status_code == 200:
+            response_text = r.text.strip()
+            try:
+                result = json.loads(response_text)
+                if result == '订阅大成功→_→':
+                    return True
+                else:
+                    raise XdnmbException(f"添加订阅失败: {response_text}")
+            except json.JSONDecodeError:
+                if response_text == '订阅大成功→_→':
+                    return True
+                else:
+                    raise XdnmbException(f"添加订阅失败: {response_text}")
+        else:
+            raise XdnmbException(f"添加订阅失败，HTTP状态码: {r.status_code}")
+
+    def del_feed(self, uuid, tid):
+        """
+        删除订阅
+
+        Args:
+            uuid: 用户订阅UUID
+            tid: 串ID（整数）
+
+        Raises:
+            XdnmbException: 删除失败时抛出
+        """
+        import json
+        url = f"https://api.nmb.best/api/delFeed?uuid={uuid}&tid={tid}"
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+
+        r = self.s.post(url, headers=headers)
+        if r.status_code == 200:
+            response_text = r.text.strip()
+            try:
+                result = json.loads(response_text)
+                if result == '取消订阅成功!':
+                    return True
+                else:
+                    raise XdnmbException(f"删除订阅失败: {response_text}")
+            except json.JSONDecodeError:
+                if response_text == '取消订阅成功!':
+                    return True
+                else:
+                    raise XdnmbException(f"删除订阅失败: {response_text}")
+        else:
+            raise XdnmbException(f"删除订阅失败，HTTP状态码: {r.status_code}")
 
     def get_by_id(self, id):
         url = f"https://api.nmb.best/Api/ref/id/{id}"
