@@ -50,7 +50,7 @@ class XdnmbDownloaderGUI:
         ttk.Button(cookie_btn_frame, text="帮助", command=self.show_cookie_help).grid(row=0, column=2, padx=2)
 
         # Cookie说明
-        cookie_hint = ttk.Label(main_frame, text='格式: PHPSESSID=***** userhash=*****  (点击"打开X岛"按钮在浏览器中获取Cookie)', foreground="gray")
+        cookie_hint = ttk.Label(main_frame, text='直接粘贴从浏览器复制的完整Cookie即可', foreground="gray")
         cookie_hint.grid(row=1, column=1, sticky=tk.W, padx=5)
 
         # 串ID输入
@@ -124,9 +124,9 @@ class XdnmbDownloaderGUI:
         # 日志显示区域
         log_frame = ttk.LabelFrame(main_frame, text="下载日志", padding="5")
         log_frame.grid(row=9, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
-        main_frame.rowconfigure(9, weight=1)
+        main_frame.rowconfigure(9, weight=2)
 
-        self.log_text = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=20)
+        self.log_text = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=15)
         self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
@@ -155,17 +155,33 @@ class XdnmbDownloaderGUI:
             messagebox.showwarning("警告", "Cookie不能为空")
             return
 
-        # 验证Cookie格式
-        parts = cookie.split(" ")
-        if len(parts) < 2:
-            messagebox.showerror("错误", "Cookie格式不正确\n格式应为: PHPSESSID=***** userhash=*****")
+        # 从完整cookie字符串中提取PHPSESSID和userhash
+        phpsessid = None
+        userhash = None
+
+        # 解析cookie（支持分号分隔或空格分隔）
+        cookie_items = cookie.replace("; ", ";").split(";")
+        for item in cookie_items:
+            if "=" in item:
+                key, value = item.split("=", 1)
+                key = key.strip()
+                value = value.strip()
+                if key == "PHPSESSID":
+                    phpsessid = value
+                elif key == "userhash":
+                    userhash = value
+
+        # 验证是否找到必需的字段
+        if not phpsessid or not userhash:
+            messagebox.showerror("错误", "Cookie中未找到必需的 PHPSESSID 或 userhash 字段\n请确保已登录X岛")
             return
 
-        # 保存Cookie
-        cookie_encoded = cookie.replace("%", "_")
+        # 保存为标准格式
+        standard_cookie = f"PHPSESSID={phpsessid} userhash={userhash}"
+        cookie_encoded = standard_cookie.replace("%", "_")
         self.conf.add("cookie", "cookie", cookie_encoded)
         self.conf.save()
-        self.log("Cookie已保存")
+        self.log(f"Cookie已保存: PHPSESSID={phpsessid[:10]}... userhash={userhash}")
         messagebox.showinfo("成功", "Cookie已保存")
 
     def open_xdao(self):
