@@ -18,7 +18,6 @@ class XdnmbDownloaderGUI:
 
         self.conf = CONF("Xdnmb")
         self.is_downloading = False
-        self.is_fetching_cookie = False
         self.cookie_fetcher = CookieFetcher()
         self.content_filter = ContentFilter()
 
@@ -44,15 +43,14 @@ class XdnmbDownloaderGUI:
         cookie_btn_frame = ttk.Frame(main_frame)
         cookie_btn_frame.grid(row=0, column=2, padx=5, pady=5)
 
-        self.auto_fetch_btn = ttk.Button(cookie_btn_frame, text="自动获取", command=self.auto_fetch_cookie)
-        self.auto_fetch_btn.grid(row=0, column=0, padx=2)
+        ttk.Button(cookie_btn_frame, text="打开X岛", command=self.open_xdao).grid(row=0, column=0, padx=2)
 
         ttk.Button(cookie_btn_frame, text="保存", command=self.save_cookie).grid(row=0, column=1, padx=2)
 
         ttk.Button(cookie_btn_frame, text="帮助", command=self.show_cookie_help).grid(row=0, column=2, padx=2)
 
         # Cookie说明
-        cookie_hint = ttk.Label(main_frame, text='格式: PHPSESSID=***** userhash=*****  (点击"自动获取"按钮可自动打开浏览器获取)', foreground="gray")
+        cookie_hint = ttk.Label(main_frame, text='格式: PHPSESSID=***** userhash=*****  (点击"打开X岛"按钮在浏览器中获取Cookie)', foreground="gray")
         cookie_hint.grid(row=1, column=1, sticky=tk.W, padx=5)
 
         # 串ID输入
@@ -170,80 +168,48 @@ class XdnmbDownloaderGUI:
         self.log("Cookie已保存")
         messagebox.showinfo("成功", "Cookie已保存")
 
-    def auto_fetch_cookie(self):
-        """自动获取Cookie"""
-        if self.is_fetching_cookie:
-            messagebox.showwarning("警告", "正在获取Cookie中，请等待")
-            return
+    def open_xdao(self):
+        """在默认浏览器中打开X岛并显示获取指南"""
+        import webbrowser
 
-        if self.is_downloading:
-            messagebox.showwarning("警告", "正在下载中，请等待下载完成")
-            return
+        # 打开X岛网站
+        webbrowser.open("https://www.nmbxd1.com")
 
-        # 优先尝试从浏览器读取
-        if not self.cookie_fetcher.use_browser_cookie3:
-            result = messagebox.askyesno(
-                "推荐安装",
-                "建议安装 browser_cookie3 库，可以直接从浏览器读取Cookie。\n\n"
-                "优点：不需要打开浏览器，不需要重新登录！\n\n"
-                "是否现在安装？\n\n"
-                "（将执行: pip install browser-cookie3）"
-            )
-            if result:
-                self.log("正在安装browser_cookie3...")
-                import subprocess
-                try:
-                    subprocess.check_call([sys.executable, "-m", "pip", "install", "browser-cookie3"])
-                    self.log('browser_cookie3安装成功，请重新点击"自动获取"按钮')
-                    messagebox.showinfo("成功", 'browser_cookie3已安装，请重新点击"自动获取"按钮')
-                    # 重新初始化fetcher
-                    self.cookie_fetcher = CookieFetcher()
-                except Exception as e:
-                    self.log(f"安装失败: {str(e)}")
-                    messagebox.showerror("错误", f"安装失败: {str(e)}")
-            return
+        # 显示简化的获取指南
+        guide_window = tk.Toplevel(self.root)
+        guide_window.title("Cookie获取步骤")
+        guide_window.geometry("500x400")
 
-        # 在新线程中获取Cookie
-        fetch_thread = threading.Thread(target=self._fetch_cookie_thread)
-        fetch_thread.daemon = True
-        fetch_thread.start()
+        # 内容框架
+        content_frame = ttk.Frame(guide_window, padding="20")
+        content_frame.pack(fill=tk.BOTH, expand=True)
 
-    def _fetch_cookie_thread(self):
-        """Cookie获取线程"""
-        self.is_fetching_cookie = True
-        self.auto_fetch_btn.config(state='disabled')
+        # 标题
+        title_label = ttk.Label(content_frame, text="获取Cookie的步骤", font=("Arial", 14, "bold"))
+        title_label.pack(pady=(0, 15))
 
-        def callback(msg):
-            """更新日志的回调函数"""
-            self.log(msg)
+        # 步骤说明
+        steps_text = """1. 在刚打开的浏览器中登录X岛匿名版
 
-        try:
-            self.log("="*50)
-            self.log("开始自动获取Cookie...")
-            self.log("正在从浏览器读取已保存的Cookie...")
-            self.log("提示：如果读取失败，请确保已在浏览器中登录X岛")
+2. 按 F12 打开开发者工具
 
-            # 调用cookie_fetcher从浏览器读取Cookie
-            cookie_str = self.cookie_fetcher.fetch_cookie_from_browser(callback=callback)
+3. 点击顶部的 "Console"（控制台）标签
 
-            # 将Cookie填入输入框
-            self.cookie_entry.delete(0, tk.END)
-            self.cookie_entry.insert(0, cookie_str)
+4. 在控制台底部输入以下代码并回车：
 
-            self.log('Cookie已自动填入，请点击"保存"按钮保存')
-            self.log("="*50)
+document.cookie
 
-            messagebox.showinfo("成功", 'Cookie获取成功！\n请点击"保存"按钮保存Cookie')
+5. 复制输出的内容（以 PHPSESSID= 开头）
 
-        except Exception as e:
-            error_msg = str(e)
-            self.log(f"获取Cookie失败: {error_msg}")
-            self.log("="*50)
-            messagebox.showerror("错误", f'获取Cookie失败:\n{error_msg}\n\n您可以点击"帮助"按钮查看手动获取方法')
+6. 粘贴到本程序的Cookie输入框
 
-        finally:
-            self.is_fetching_cookie = False
-            self.auto_fetch_btn.config(state='normal')
+7. 点击"保存"按钮"""
+
+        steps_label = ttk.Label(content_frame, text=steps_text, justify=tk.LEFT, font=("Consolas", 10))
+        steps_label.pack(pady=10, anchor=tk.W)
+
+        # 关闭按钮
+        ttk.Button(guide_window, text="我知道了", command=guide_window.destroy).pack(pady=10)
 
     def show_cookie_help(self):
         """显示Cookie获取帮助"""

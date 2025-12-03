@@ -1,14 +1,8 @@
 # Xdnmb下载器依赖包
 
-# 网络请求
+# 网络请求（必需）
 requests>=2.28.0
 
-# GUI自动获取Cookie功能（推荐安装）
-# 直接从浏览器读取已登录的Cookie，无需重新登录
-browser-cookie3>=0.19.1
-
 # 注意：
-# 1. 基础功能不需要browser-cookie3，只有使用"自动获取Cookie"按钮时才需要
-# 2. browser-cookie3支持Chrome、Edge、Firefox等主流浏览器
-# 3. 使用前请确保已在浏览器中登录X岛匿名版
-# 4. 某些浏览器可能需要完全关闭后才能读取Cookie
+# - Cookie需要手动获取，程序会打开X岛网站并显示获取步骤
+# - 按F12打开开发者工具，在Console输入 document.cookie 即可获取
