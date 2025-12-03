@@ -26,6 +26,7 @@ class Xdnmb():
         return self.remove_tips(r)
 
     def subscribe(self, uuid):
+        """获取订阅列表（原始方法，保持向后兼容）"""
         def single(page):
             url = f"https://api.nmb.best/Api/feed/uuid/{uuid}/page/{page}"
             r = self.s.get(url).json()
@@ -44,6 +45,56 @@ class Xdnmb():
             t = single(i)
         self.cache("subscribe", fin)
         return fin
+
+    def get_subscribe_list(self, uuid):
+        """
+        获取订阅列表的详细信息（用于GUI显示）
+        返回格式化的订阅串列表
+
+        Returns:
+            list: [
+                {
+                    'id': 串ID,
+                    'title': 标题,
+                    'content': 内容,
+                    'content_preview': 内容预览（前100字），
+                    'reply_count': 回复数（估算）,
+                    'img': 图片,
+                    'ext': 图片扩展名,
+                    'time': 时间（如果有）
+                },
+                ...
+            ]
+        """
+        import re
+        raw_list = self.subscribe(uuid)
+        formatted_list = []
+
+        for item in raw_list:
+            # 提取并格式化关键信息
+            formatted = {
+                'id': item.get('id', 0),
+                'title': item.get('title', '无标题'),
+                'content': item.get('content', ''),
+                'img': item.get('img', ''),
+                'ext': item.get('ext', ''),
+            }
+
+            # 生成内容预览（移除HTML标签，取前100字）
+            content_clean = re.sub(r'<br\s*/?>', ' ', formatted['content'], flags=re.IGNORECASE)
+            content_clean = re.sub(r'<[^>]+>', '', content_clean)
+            content_clean = content_clean.strip()
+            formatted['content_preview'] = content_clean[:100] + ('...' if len(content_clean) > 100 else '')
+
+            # 回复数（如果API提供replyCount字段）
+            formatted['reply_count'] = item.get('replyCount', item.get('ReplyCount', '?'))
+
+            # 时间（如果API提供）
+            formatted['time'] = item.get('now', item.get('time', ''))
+
+            formatted_list.append(formatted)
+
+        return formatted_list
 
     def get_by_id(self, id):
         url = f"https://api.nmb.best/Api/ref/id/{id}"

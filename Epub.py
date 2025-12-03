@@ -14,6 +14,42 @@ def mkdir(path):
             raise Exception(f"创建目录失败 {path}: {e}")
 
 
+def sanitize_folder_name(text, max_length=100):
+    """
+    清理文件夹名称，移除不合法字符
+
+    :param text: 原始文本
+    :param max_length: 最大长度
+    :return: 清理后的文件夹名
+    """
+    import re
+
+    # 1. 移除HTML标签
+    clean_text = re.sub(r'<br\s*/?>', ' ', text, flags=re.IGNORECASE)
+    clean_text = re.sub(r'<[^>]+>', '', clean_text)
+
+    # 2. 替换Windows/Linux不允许的文件名字符为下划线
+    # 不允许的字符: / \ : * ? " < > |
+    illegal_chars = r'[/\\:*?"<>|]'
+    clean_text = re.sub(illegal_chars, '_', clean_text)
+
+    # 3. 去除首尾空格和特殊字符
+    clean_text = clean_text.strip('. ')  # 移除首尾的点和空格
+
+    # 4. 压缩连续的空格为单个空格
+    clean_text = re.sub(r'\s+', ' ', clean_text)
+
+    # 5. 限制长度
+    if len(clean_text) > max_length:
+        clean_text = clean_text[:max_length].strip()
+
+    # 6. 如果清理后为空，使用默认名称
+    if not clean_text:
+        clean_text = "未命名文件夹"
+
+    return clean_text
+
+
 def ZIP_single(root_path, dir_path):
     '''
     root_path:文件夹根目录

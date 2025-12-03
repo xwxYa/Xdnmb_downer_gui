@@ -4,7 +4,7 @@ import threading
 import sys
 from io import StringIO
 from Xdnmb import Xdnmb, XdnmbException
-from Epub import Epub, TXT, Markdown
+from Epub import Epub, TXT, Markdown, sanitize_folder_name
 from Lib.ini import CONF
 from cookie_fetcher import CookieFetcher
 from content_filter import ContentFilter
@@ -25,13 +25,32 @@ class XdnmbDownloaderGUI:
         self.load_settings()
 
     def create_widgets(self):
-        # 主框架
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        # 创建Notebook（Tab页签容器）
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # 创建两个Tab页
+        self.single_tab = ttk.Frame(self.notebook, padding="10")
+        self.batch_tab = ttk.Frame(self.notebook, padding="10")
+
+        self.notebook.add(self.single_tab, text="单串下载")
+        self.notebook.add(self.batch_tab, text="订阅批量下载")
+
+        # 配置Tab内部权重
+        self.single_tab.columnconfigure(1, weight=1)
+        self.batch_tab.columnconfigure(0, weight=1)
+
+        # 创建单串下载Tab内容
+        self.create_single_download_tab()
+
+        # 创建订阅批量下载Tab内容
+        self.create_subscription_tab(self.batch_tab)
+
+    def create_single_download_tab(self):
+        """创建单串下载Tab页面"""
+        main_frame = self.single_tab
 
         # 配置行列权重
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
 
         # Cookie设置区域
@@ -163,6 +182,15 @@ class XdnmbDownloaderGUI:
                 self.log("已加载保存的Cookie")
         except:
             self.log("未检测到保存的Cookie")
+
+        # 加载保存的订阅UUID
+        try:
+            uuid = self.conf.load("subscription", "uuid")
+            if uuid and len(uuid) > 0:
+                self.sub_uuid_entry.insert(0, uuid[0])
+                self.log("已加载保存的订阅UUID")
+        except:
+            pass  # UUID是可选的，不输出日志
 
     def save_cookie(self):
         """保存Cookie设置"""
@@ -671,6 +699,397 @@ class XdnmbDownloaderGUI:
             self.is_downloading = False
             self.download_btn.config(state='normal')
             self.progress.stop()
+
+    # ==================== 订阅批量下载功能 ====================
+
+    def create_subscription_tab(self, parent):
+        """创建订阅批量下载Tab页面"""
+        sub_frame = parent
+
+        # 配置权重
+        sub_frame.columnconfigure(0, weight=1)
+        sub_frame.rowconfigure(1, weight=1)
+
+        # UUID输入区
+        uuid_frame = ttk.LabelFrame(sub_frame, text="订阅UUID", padding="10")
+        uuid_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=5)
+        uuid_frame.columnconfigure(1, weight=1)
+
+        ttk.Label(uuid_frame, text="UUID:").grid(row=0, column=0, sticky=tk.W, padx=5)
+        self.sub_uuid_entry = ttk.Entry(uuid_frame, width=50)
+        self.sub_uuid_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=5)
+
+        btn_frame = ttk.Frame(uuid_frame)
+        btn_frame.grid(row=0, column=2, padx=5)
+
+        ttk.Button(btn_frame, text="获取订阅列表", command=self.fetch_subscription_list).grid(row=0, column=0, padx=2)
+        ttk.Button(btn_frame, text="UUID获取教程", command=self.show_uuid_help).grid(row=0, column=1, padx=2)
+
+        # 订阅列表显示区
+        list_frame = ttk.LabelFrame(sub_frame, text="订阅串列表", padding="10")
+        list_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        list_frame.columnconfigure(0, weight=1)
+        list_frame.rowconfigure(0, weight=1)
+
+        # 创建Canvas和Scrollbar用于滚动显示勾选框列表
+        canvas = tk.Canvas(list_frame, borderwidth=0, background="#ffffff")
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=canvas.yview)
+        self.subscription_list_frame = ttk.Frame(canvas)
+
+        self.subscription_list_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=self.subscription_list_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+
+        # 批量操作按钮
+        batch_btn_frame = ttk.Frame(sub_frame)
+        batch_btn_frame.grid(row=2, column=0, pady=5)
+
+        ttk.Button(batch_btn_frame, text="全选", command=self.select_all_subscriptions).grid(row=0, column=0, padx=5)
+        ttk.Button(batch_btn_frame, text="反选", command=self.invert_selection).grid(row=0, column=1, padx=5)
+        ttk.Button(batch_btn_frame, text="清空", command=self.clear_selection).grid(row=0, column=2, padx=5)
+        self.batch_download_btn = ttk.Button(batch_btn_frame, text="开始批量下载 (已选0个)", command=self.start_batch_download)
+        self.batch_download_btn.grid(row=0, column=3, padx=5)
+
+        # 存储订阅数据
+        self.subscription_data = []  # 存储获取的订阅列表
+        self.subscription_vars = []  # 存储勾选框变量
+
+    def show_uuid_help(self):
+        """显示UUID获取教程"""
+        help_window = tk.Toplevel(self.root)
+        help_window.title("订阅UUID获取教程")
+        help_window.geometry("600x500")
+
+        text_frame = ttk.Frame(help_window, padding="10")
+        text_frame.pack(fill=tk.BOTH, expand=True)
+
+        text_widget = scrolledtext.ScrolledText(text_frame, wrap=tk.WORD, font=("Consolas", 10))
+        text_widget.pack(fill=tk.BOTH, expand=True)
+
+        help_text = """
+订阅UUID获取方法：
+
+方法一：使用开发者工具（推荐）
+1. 打开浏览器访问 https://www.nmbxd1.com 并登录
+2. 进入"订阅"页面
+3. 按 F12 打开开发者工具
+4. 切换到 "Network"（网络）标签
+5. 刷新页面
+6. 在网络请求列表中找到包含 "feed/uuid/" 的请求
+7. 点击该请求，从URL中复制UUID
+   例如：https://api.nmb.best/Api/feed/uuid/XXXXXXXX/page/1
+   UUID就是"XXXXXXXX"部分
+
+方法二：从浏览器URL获取
+1. 在X岛网站进入订阅页面
+2. 查看浏览器地址栏URL
+3. 如果URL包含UUID参数，直接复制
+
+方法三：从Cookie/LocalStorage获取（高级）
+1. 按 F12 打开开发者工具
+2. 切换到 "Application"（应用）标签
+3. 查看 "Cookies" 或 "LocalStorage"
+4. 找到存储的订阅UUID字段
+
+注意：
+- UUID通常是一个32位的十六进制字符串
+- 如果找不到UUID，请确保已登录并添加过订阅
+- UUID获取后建议保存到程序中，下次无需重新获取
+"""
+        text_widget.insert(1.0, help_text)
+        text_widget.config(state='disabled')
+
+        ttk.Button(help_window, text="关闭", command=help_window.destroy).pack(pady=10)
+
+    def fetch_subscription_list(self):
+        """获取订阅列表"""
+        uuid = self.sub_uuid_entry.get().strip()
+        if not uuid:
+            messagebox.showerror("错误", "请输入订阅UUID")
+            return
+
+        # 保存UUID到配置
+        self.conf.add("subscription", "uuid", uuid)
+        self.conf.save()
+
+        # 在新线程中获取订阅列表
+        fetch_thread = threading.Thread(target=self.fetch_subscription_thread, args=(uuid,))
+        fetch_thread.daemon = True
+        fetch_thread.start()
+
+    def fetch_subscription_thread(self, uuid):
+        """获取订阅列表的线程"""
+        try:
+            self.log("正在获取订阅列表...")
+
+            # 获取Cookie
+            cookie = self.cookie_entry.get().strip()
+            if not cookie:
+                messagebox.showerror("错误", "请先设置Cookie")
+                return
+
+            # 创建Xdnmb实例并获取订阅列表
+            x = Xdnmb(cookie)
+            self.subscription_data = x.get_subscribe_list(uuid)
+
+            self.log(f"成功获取 {len(self.subscription_data)} 个订阅串")
+
+            # 在主线程中更新GUI
+            self.root.after(0, self.display_subscription_list)
+
+        except XdnmbException as e:
+            self.log(f"错误: {e}")
+            messagebox.showerror("错误", str(e))
+        except Exception as e:
+            self.log(f"获取订阅列表失败: {e}")
+            messagebox.showerror("错误", f"获取订阅列表失败: {e}")
+
+    def display_subscription_list(self):
+        """显示订阅列表"""
+        # 清空现有列表
+        for widget in self.subscription_list_frame.winfo_children():
+            widget.destroy()
+        self.subscription_vars = []
+
+        if not self.subscription_data:
+            ttk.Label(self.subscription_list_frame, text="没有订阅内容",
+                     foreground="gray", font=("Arial", 10)).pack(pady=20)
+            return
+
+        # 为每个串创建实际的勾选框
+        for idx, thread in enumerate(self.subscription_data):
+            var = tk.BooleanVar(value=False)
+            self.subscription_vars.append((var, thread))
+
+            # 创建每个串的容器Frame
+            item_frame = ttk.Frame(self.subscription_list_frame)
+            item_frame.pack(fill=tk.X, padx=5, pady=5)
+
+            thread_id = thread['id']
+            title = thread['title']
+            preview = thread['content_preview']
+            reply_count = thread['reply_count']
+            time_str = thread['time']
+
+            # 创建勾选框
+            cb = ttk.Checkbutton(item_frame, variable=var,
+                                command=self.update_batch_download_btn)
+            cb.grid(row=0, column=0, rowspan=3, sticky=tk.N, padx=5)
+
+            # 显示串信息
+            info_text = f"[{thread_id}] {title}"
+            ttk.Label(item_frame, text=info_text, font=("Arial", 10, "bold"),
+                     wraplength=600).grid(row=0, column=1, sticky=tk.W, pady=2)
+
+            preview_text = f"内容预览: {preview}"
+            ttk.Label(item_frame, text=preview_text, foreground="gray",
+                     wraplength=600).grid(row=1, column=1, sticky=tk.W, pady=2)
+
+            meta_text = f"回复数: {reply_count}  |  最后回复: {time_str}"
+            ttk.Label(item_frame, text=meta_text, foreground="blue",
+                     font=("Arial", 8)).grid(row=2, column=1, sticky=tk.W, pady=2)
+
+            # 分隔线
+            ttk.Separator(self.subscription_list_frame, orient=tk.HORIZONTAL).pack(
+                fill=tk.X, padx=10, pady=5)
+
+        self.update_batch_download_btn()
+
+    def select_all_subscriptions(self):
+        """全选订阅"""
+        for var, _ in self.subscription_vars:
+            var.set(True)
+        self.update_batch_download_btn()
+        self.log("已全选所有订阅串")
+
+    def invert_selection(self):
+        """反选"""
+        for var, _ in self.subscription_vars:
+            var.set(not var.get())
+        self.update_batch_download_btn()
+        self.log("已反选")
+
+    def clear_selection(self):
+        """清空选择"""
+        for var, _ in self.subscription_vars:
+            var.set(False)
+        self.update_batch_download_btn()
+        self.log("已清空选择")
+
+    def update_batch_download_btn(self):
+        """更新批量下载按钮文本"""
+        selected_count = sum(1 for var, _ in self.subscription_vars if var.get())
+        self.batch_download_btn.config(text=f"开始批量下载 (已选{selected_count}个)")
+
+    def start_batch_download(self):
+        """开始批量下载"""
+        selected_threads = [(thread['id'], thread['content']) for var, thread in self.subscription_vars if var.get()]
+
+        if not selected_threads:
+            messagebox.showwarning("警告", "请至少选择一个串进行下载")
+            return
+
+        # 获取输出格式
+        output_formats = []
+        if self.epub_var.get():
+            output_formats.append("epub")
+        if self.txt_var.get():
+            output_formats.append("txt")
+        if self.md_online_var.get():
+            output_formats.append("md_online")
+        if self.md_local_var.get():
+            output_formats.append("md_local")
+
+        if not output_formats:
+            messagebox.showerror("错误", "请至少选择一种输出格式")
+            return
+
+        # 在新线程中执行批量下载
+        batch_thread = threading.Thread(
+            target=self.batch_download_thread,
+            args=(selected_threads, output_formats)
+        )
+        batch_thread.daemon = True
+        batch_thread.start()
+
+    def batch_download_thread(self, selected_threads, output_formats):
+        """批量下载线程"""
+        import datetime
+
+        self.log("="*50)
+        self.log(f"开始批量下载 {len(selected_threads)} 个串")
+
+        # 创建时间戳文件夹
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        batch_folder = f"订阅_{timestamp}"
+
+        success_count = 0
+        fail_count = 0
+        failed_list = []
+
+        cookie = self.cookie_entry.get().strip()
+        x = Xdnmb(cookie)
+
+        # 获取下载模式
+        download_mode = self.download_mode_var.get()
+        handler = x.po if download_mode == "po" else x.all
+
+        for idx, (thread_id, thread_content) in enumerate(selected_threads, 1):
+            try:
+                self.log(f"\n[{idx}/{len(selected_threads)}] 正在下载串 {thread_id}...")
+
+                # 获取串数据
+                fin = x.get_with_cache(thread_id, handler)
+
+                # 创建子文件夹（使用串主内容前100字）
+                folder_name = sanitize_folder_name(thread_content, max_length=100)
+                thread_folder = f".tmp/{batch_folder}/{folder_name}"
+
+                # 导出文件（修改输出路径）
+                self.export_thread_to_folder(fin, thread_id, thread_folder, output_formats, x)
+
+                success_count += 1
+                self.log(f"✓ 串 {thread_id} 下载成功")
+
+            except Exception as e:
+                fail_count += 1
+                failed_list.append((thread_id, str(e)))
+                self.log(f"✗ 串 {thread_id} 下载失败: {e}")
+
+        # 显示统计结果
+        self.log("="*50)
+        self.log(f"批量下载完成！")
+        self.log(f"成功: {success_count}/{len(selected_threads)}")
+        self.log(f"失败: {fail_count}/{len(selected_threads)}")
+
+        if failed_list:
+            self.log("\n失败的串：")
+            for thread_id, error in failed_list:
+                self.log(f"  - 串{thread_id}: {error}")
+
+        self.log(f"\n文件保存在: .tmp/{batch_folder}/")
+        messagebox.showinfo("完成", f"批量下载完成！\n成功: {success_count}\n失败: {fail_count}\n\n文件保存在 .tmp/{batch_folder}/")
+
+    def export_thread_to_folder(self, fin, thread_id, folder_path, output_formats, x):
+        """导出串到指定文件夹"""
+        from Epub import mkdir
+
+        # 确保文件夹存在
+        mkdir(folder_path)
+
+        # 根据格式导出
+        if "epub" in output_formats:
+            # EPUB导出逻辑（简化版，直接使用现有代码）
+            e = Epub(fin["title"], f"https://www.nmbxd1.com/t/{thread_id}")
+            e.plugin(x.s)
+            e.cover(fin["content"])
+            e.add_text(
+                f'''来自https://www.nmbxd1.com/t/{thread_id}<br />版权归属原作者及X岛匿名版''',
+                "来源声明"
+            )
+            for reply in fin["Replies"]:
+                if reply["img"] != "":
+                    e.add_text(reply["content"], reply["title"],
+                             ["https://image.nmb.best/image/" + reply["img"] + reply["ext"]])
+                else:
+                    e.add_text(reply["content"], reply["title"])
+            e.finish()
+            # 移动文件到目标文件夹
+            import shutil
+            shutil.move(f".tmp/{fin['title']}.epub", f"{folder_path}/{fin['title']}.epub")
+
+        if "txt" in output_formats:
+            t = TXT(fin["title"])
+            t.add(f'''来自https://www.nmbxd1.com/t/{thread_id}\n版权归属原作者及X岛匿名版''')
+            t.add(fin["content"])
+            for reply in fin["Replies"]:
+                t.add("\n——————————")
+                t.add(reply["content"])
+            del t
+            # 移动文件
+            import shutil
+            shutil.move(f".tmp/{fin['title']}.txt", f"{folder_path}/{fin['title']}.txt")
+
+        if "md_online" in output_formats:
+            m = Markdown(fin["title"], f"https://www.nmbxd1.com/t/{thread_id}", mode='online')
+            m.plugin(x.s)
+            m.add_cover(fin["content"])
+            for reply in fin["Replies"]:
+                if reply["img"] != "":
+                    m.add_text(reply["content"], reply["title"],
+                             ["https://image.nmb.best/image/" + reply["img"] + reply["ext"]])
+                else:
+                    m.add_text(reply["content"], reply["title"])
+            m.finish()
+            # 移动文件
+            import shutil
+            shutil.move(f".tmp/{fin['title']}.md", f"{folder_path}/{fin['title']}.md")
+
+        if "md_local" in output_formats:
+            path_type = self.md_path_type_var.get()
+            m = Markdown(fin["title"], f"https://www.nmbxd1.com/t/{thread_id}",
+                       mode='local', path_type=path_type)
+            m.plugin(x.s)
+            m.add_cover(fin["content"])
+            for reply in fin["Replies"]:
+                if reply["img"] != "":
+                    m.add_text(reply["content"], reply["title"],
+                             ["https://image.nmb.best/image/" + reply["img"] + reply["ext"]])
+                else:
+                    m.add_text(reply["content"], reply["title"])
+            m.finish()
+            # 移动文件和图片文件夹
+            import shutil
+            shutil.move(f".tmp/{fin['title']}.md", f"{folder_path}/{fin['title']}.md")
+            if os.path.exists(f".tmp/{fin['title']}_files"):
+                shutil.move(f".tmp/{fin['title']}_files", f"{folder_path}/{fin['title']}_files")
 
 def main():
     root = tk.Tk()
