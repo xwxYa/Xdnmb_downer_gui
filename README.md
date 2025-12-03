@@ -13,10 +13,7 @@ X岛匿名版的下载工具（GUI版）
 pip install -r requirements.txt
 ```
 
-**注意**：
-- `selenium`库仅在使用GUI的"自动获取Cookie"功能时需要
-- 如果只使用手动输入Cookie或命令行版本，可以不安装selenium
-- GUI界面会在需要时提示安装selenium
+**注意**：只需要安装 `requests` 库，无其他依赖
 
 ## 快速开始
 
@@ -27,24 +24,29 @@ pip install -r requirements.txt
 - Linux/Mac：执行 `bash run_gui.sh` 或 `python3 gui.py`
 
 **使用步骤**：
-1. 点击"自动获取"按钮，在打开的浏览器中登录（首次使用会自动安装selenium）
-2. 登录成功后Cookie自动填入，点击"保存"
-3. 输入串ID（如：51340998）
-4. 选择输出格式和过滤选项
-5. 点击"开始下载"，文件保存在`.tmp`文件夹
+1. 点击"打开X岛"按钮，在浏览器中登录（如已登录可跳过）
+2. 按F12打开开发者工具，在Console（控制台）输入 `document.cookie` 并回车
+3. 复制输出的Cookie，粘贴到程序的Cookie输入框，点击"保存"
+4. 输入串ID（如：51340998）
+5. 选择下载模式（所有回复/只下载PO的回复）
+6. 选择输出格式（EPUB/TXT）
+7. 可选：设置自定义标题和内容过滤
+8. 点击"开始下载"，文件保存在`.tmp`文件夹
 
 **功能特点**：
-- 一键自动获取Cookie：自动打开浏览器登录，无需手动复制
+- 简单易用：点击"打开X岛"按钮快速访问网站，点击"帮助"查看详细获取教程
 - 智能内容过滤：三种过滤模式提升阅读体验
   - 自动过滤短回复（≤25字符且无图片）
   - 智能过滤无意义回复（fy、mark、jmjp等）
   - 手动审核模式（逐条确认）
   - 可视化词汇表管理
+- 双下载模式：支持下载所有回复或只下载PO（楼主）的回复
+- 增量更新：缓存机制支持串更新后只下载新回复
 - 实时日志显示和过滤统计
-- 支持EPUB和TXT格式
+- 支持EPUB和TXT格式，TXT格式自动添加回复分割线
 - 多线程下载，界面流畅
 
-### 命令行版本：
+### 命令行版本
 
 `python run.py`
 
@@ -52,23 +54,29 @@ pip install -r requirements.txt
 
 `python main.py`
 
-初次使用请先准备好cookies，如果你不知晓cookies是何物，可以按下方说明进行操作
+## Cookie获取说明
 
-俩种方式
-1. 全选如下内容，直接拖到书签栏
+初次使用请先获取cookies，有以下几种方式：
 
-`javascript:(function(){let domain=document.domain;let cookie=document.cookie;prompt('Cookies: '+domain, cookie)})();`
+### 方式一：使用开发者工具（推荐）
+1. 打开浏览器访问 https://www.nmbxd1.com 并登录
+2. 按 F12 打开开发者工具
+3. 切换到 "Console"（控制台）标签
+4. 在底部输入 `document.cookie` 并回车
+5. 复制输出的内容（以 PHPSESSID= 开头）
+6. 粘贴到程序的Cookie输入框
 
-2. 打开匿名版，点击书签，直接复制框内内容填入程序`c + [你刚刚复制的内容]`
+### 方式二：使用书签工具
+1. 创建书签，URL填入：
+   ```javascript
+   javascript:(function(){let domain=document.domain;let cookie=document.cookie;prompt('Cookies: '+domain, cookie)})();
+   ```
+2. 访问 https://www.nmbxd1.com 并登录
+3. 点击书签，复制弹出的Cookie内容
+4. 粘贴到程序的Cookie输入框
 
-或者
-1. PC浏览器，随便添加一个页面到书签
-2. 右键该书签，进行编辑，将内容替换成`javascript:(function(){let domain=document.domain;let cookie=document.cookie;prompt('Cookies: '+domain, cookie)})();`即可
-3. 打开匿名版，点击书签，直接复制框内内容填入程序`c + [你刚刚复制的内容]`
-
-题外话：
+## 题外话
 
 > 版权的代码我直接摆在你脸上了，反正公开的东西想搞事的谁也拦不住
-> 
->  不搞编译了，没用的东西.jpg
-
+>
+> 不搞编译了，没用的东西.jpg

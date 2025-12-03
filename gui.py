@@ -169,47 +169,11 @@ class XdnmbDownloaderGUI:
         messagebox.showinfo("成功", "Cookie已保存")
 
     def open_xdao(self):
-        """在默认浏览器中打开X岛并显示获取指南"""
+        """在默认浏览器中打开X岛"""
         import webbrowser
-
-        # 打开X岛网站
         webbrowser.open("https://www.nmbxd1.com")
-
-        # 显示简化的获取指南
-        guide_window = tk.Toplevel(self.root)
-        guide_window.title("Cookie获取步骤")
-        guide_window.geometry("500x400")
-
-        # 内容框架
-        content_frame = ttk.Frame(guide_window, padding="20")
-        content_frame.pack(fill=tk.BOTH, expand=True)
-
-        # 标题
-        title_label = ttk.Label(content_frame, text="获取Cookie的步骤", font=("Arial", 14, "bold"))
-        title_label.pack(pady=(0, 15))
-
-        # 步骤说明
-        steps_text = """1. 在刚打开的浏览器中登录X岛匿名版
-
-2. 按 F12 打开开发者工具
-
-3. 点击顶部的 "Console"（控制台）标签
-
-4. 在控制台底部输入以下代码并回车：
-
-document.cookie
-
-5. 复制输出的内容（以 PHPSESSID= 开头）
-
-6. 粘贴到本程序的Cookie输入框
-
-7. 点击"保存"按钮"""
-
-        steps_label = ttk.Label(content_frame, text=steps_text, justify=tk.LEFT, font=("Consolas", 10))
-        steps_label.pack(pady=10, anchor=tk.W)
-
-        # 关闭按钮
-        ttk.Button(guide_window, text="我知道了", command=guide_window.destroy).pack(pady=10)
+        self.log("已在默认浏览器中打开X岛匿名版")
+        self.log('如需帮助，请点击"帮助"按钮查看Cookie获取方法')
 
     def show_cookie_help(self):
         """显示Cookie获取帮助"""
