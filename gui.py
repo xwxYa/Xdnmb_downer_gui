@@ -4,7 +4,7 @@ import threading
 import sys
 from io import StringIO
 from Xdnmb import Xdnmb, XdnmbException
-from Epub import Epub, TXT
+from Epub import Epub, TXT, Markdown
 from Lib.ini import CONF
 from cookie_fetcher import CookieFetcher
 from content_filter import ContentFilter
@@ -73,9 +73,25 @@ class XdnmbDownloaderGUI:
 
         self.epub_var = tk.BooleanVar(value=False)
         self.txt_var = tk.BooleanVar(value=True)
+        self.md_online_var = tk.BooleanVar(value=False)
+        self.md_local_var = tk.BooleanVar(value=False)
 
         ttk.Checkbutton(format_frame, text="EPUB", variable=self.epub_var).grid(row=0, column=0, padx=10)
         ttk.Checkbutton(format_frame, text="TXT", variable=self.txt_var).grid(row=0, column=1, padx=10)
+        ttk.Checkbutton(format_frame, text="Markdown (在线图片)", variable=self.md_online_var).grid(row=0, column=2, padx=10)
+        ttk.Checkbutton(format_frame, text="Markdown (本地图片)", variable=self.md_local_var).grid(row=0, column=3, padx=10)
+
+        # Markdown 本地图片路径选项
+        path_frame = ttk.Frame(format_frame)
+        path_frame.grid(row=1, column=2, columnspan=2, sticky=tk.W, padx=10, pady=5)
+
+        ttk.Label(path_frame, text="本地图片路径：", foreground="gray").pack(side=tk.LEFT)
+
+        self.md_path_type_var = tk.StringVar(value="relative")
+        ttk.Radiobutton(path_frame, text="相对路径", variable=self.md_path_type_var,
+                       value="relative").pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(path_frame, text="绝对路径", variable=self.md_path_type_var,
+                       value="absolute").pack(side=tk.LEFT, padx=5)
 
         # 下载模式选择
         mode_frame = ttk.LabelFrame(main_frame, text="下载模式", padding="10")
@@ -459,6 +475,10 @@ class XdnmbDownloaderGUI:
             output_formats.append("epub")
         if self.txt_var.get():
             output_formats.append("txt")
+        if self.md_online_var.get():
+            output_formats.append("md_online")
+        if self.md_local_var.get():
+            output_formats.append("md_local")
 
         if not output_formats:
             messagebox.showerror("错误", "请至少选择一种输出格式")
@@ -580,6 +600,58 @@ class XdnmbDownloaderGUI:
 
                 del t
                 self.log(f"TXT文件已生成: .tmp/{fin['title']}.txt")
+
+            if "md_online" in output_formats:
+                self.log("正在生成Markdown（在线图片）...")
+                m = Markdown(fin["title"], f"https://www.nmbxd1.com/t/{thread_id}", mode='online')
+                m.plugin(x.s)
+                m.add_cover(fin["content"])
+
+                msg = fin["Replies"]
+                for i, reply in enumerate(msg):
+                    if i % 10 == 0:
+                        self.log(f"处理进度: {i+1}/{len(msg)}")
+
+                    if reply["img"] != "":
+                        m.add_text(
+                            reply["content"],
+                            reply["title"],
+                            ["https://image.nmb.best/image/" + reply["img"] + reply["ext"]]
+                        )
+                    else:
+                        m.add_text(reply["content"], reply["title"])
+
+                m.finish()
+                self.log(f"Markdown文件已生成: .tmp/{fin['title']}.md")
+
+            if "md_local" in output_formats:
+                # 获取路径类型
+                path_type = self.md_path_type_var.get()
+                path_desc = "相对路径" if path_type == "relative" else "绝对路径"
+                self.log(f"正在生成Markdown（本地图片，{path_desc}）...")
+
+                m = Markdown(fin["title"], f"https://www.nmbxd1.com/t/{thread_id}",
+                           mode='local', path_type=path_type)
+                m.plugin(x.s)
+                m.add_cover(fin["content"])
+
+                msg = fin["Replies"]
+                for i, reply in enumerate(msg):
+                    if i % 10 == 0:
+                        self.log(f"处理进度: {i+1}/{len(msg)}")
+
+                    if reply["img"] != "":
+                        m.add_text(
+                            reply["content"],
+                            reply["title"],
+                            ["https://image.nmb.best/image/" + reply["img"] + reply["ext"]]
+                        )
+                    else:
+                        m.add_text(reply["content"], reply["title"])
+
+                m.finish()
+                self.log(f"Markdown文件已生成: .tmp/{fin['title']}.md ({path_desc})")
+                self.log(f"图片文件夹: .tmp/{fin['title']}_files/images/")
 
             self.log("="*50)
             self.log("下载完成！文件保存在 .tmp 文件夹中")

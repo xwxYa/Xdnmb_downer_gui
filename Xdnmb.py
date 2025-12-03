@@ -80,17 +80,16 @@ class Xdnmb():
 
     @staticmethod
     def success(r):
-        try:
-            r["success"] == False
-        except Exception:
-            return r
-        else:
-            if r["error"] == "该串不存在":
+        # 检查响应中是否包含错误信息
+        if "success" in r and r["success"] == False:
+            error_msg = r.get("error", "未知错误")
+            if error_msg == "该串不存在":
                 raise XdnmbException("虚空下载不可取,该串不存在,再给你一次机会")
-            elif r["error"] == "必须登入领取饼干后才可以访问":
+            elif error_msg == "必须登入领取饼干后才可以访问":
                 raise XdnmbException("饼干呢?你这饼干假的吧,必须登入领取饼干后才可以访问,再给你一次机会")
             else:
-                raise XdnmbException("很神秘,是不知道的错误呢:"+r["error"])
+                raise XdnmbException(f"很神秘,是不知道的错误呢:{error_msg}")
+        return r
 
     @staticmethod
     def transform(fin):
@@ -103,28 +102,39 @@ class Xdnmb():
 
     @staticmethod
     def remove_tips(fin):
-        i = 0
-        while i < len(fin["Replies"]):
-            if fin["Replies"][i]["id"] == 9999999:
-                del fin["Replies"][i]
-            i += 1
+        # 过滤掉广告回复（ID为9999999）
+        # 使用列表推导式，避免在遍历时删除元素的问题
+        AD_REPLY_ID = 9999999
+        fin["Replies"] = [reply for reply in fin["Replies"] if reply["id"] != AD_REPLY_ID]
         return fin
 
     @staticmethod
-    def cache(id, fin={}):
+    def cache(id, fin=None):
         # Ensure .log folder exists
         if not os.path.exists(".log"):
             os.makedirs(".log")
 
         path = os.path.join(".log", f"{id}.json")
-        if fin == {}:
+
+        # 读取缓存
+        if fin is None:
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     c = json.load(f)
                 return c
-            except:
+            except FileNotFoundError:
                 print("[INFO]:未检测到缓存")
                 return False
+            except json.JSONDecodeError:
+                print("[WARNING]:缓存文件损坏，将被忽略")
+                return False
+            except Exception as e:
+                print(f"[ERROR]:读取缓存失败: {e}")
+                return False
+        # 写入缓存
         else:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(fin, f)
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(fin, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                print(f"[ERROR]:写入缓存失败: {e}")

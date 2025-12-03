@@ -29,7 +29,8 @@ def get_qs(qs, key):
 
 
 class Network():
-    def __init__(self, hostTips: dict, log_path=".log", log_level=20, proxies={"http": None, "https": None}) -> None:
+    def __init__(self, hostTips: dict, log_path=".log", log_level=20, proxies={"http": None, "https": None},
+                 timeout=30, max_retries=3) -> None:
         '''
         hostTips = {
             "office.com": {
@@ -39,6 +40,8 @@ class Network():
                 "ip": False
             }
         }
+        timeout: 请求超时时间（秒）
+        max_retries: 最大重试次数
         '''
 
         self.LOG = Log("Network", log_level=log_level, log_path=log_path)
@@ -47,6 +50,8 @@ class Network():
         self.s.trust_env = False
         self.s.keep_alive = False
         self.table = hostTips
+        self.timeout = timeout
+        self.max_retries = max_retries
 
     def get(self, url, headers=False, noDefaultHeader=False, changeDefaultHeader=False, verify=False, **kwargs):
         h = Header.headerchange(headers, noDefaultHeader, changeDefaultHeader)
@@ -57,18 +62,35 @@ class Network():
             if ip:
                 url = url.replace(domain, ip)
                 h["host"] = domain
-        try:
-            r = self.s.get(url, headers=h, verify=False, **kwargs)
-        except Exception as e:
-            self.LOG.error(f"[GET][ERROR]\t\t{url}\t{domain}\t{e.args}")
-            raise Exception(e.args)
-        self.LOG.info(f"[GET][INFO]\t\t{r.status_code}\t{r.url}\t{domain}")
-        try:
-            self.LOG.debug(
-                f"[GET][DEBUG]\t\t{h}\n"+"\t"*11 + f"{r.headers}\n" + "\t"*11 + f"{r.text}")
-        except Exception:
-            pass
-        return r
+
+        # 设置默认超时，如果用户没有指定
+        if 'timeout' not in kwargs:
+            kwargs['timeout'] = self.timeout
+
+        # 重试机制
+        last_exception = None
+        for attempt in range(self.max_retries):
+            try:
+                r = self.s.get(url, headers=h, verify=False, **kwargs)
+                self.LOG.info(f"[GET][INFO]\t\t{r.status_code}\t{r.url}\t{domain}")
+                try:
+                    self.LOG.debug(
+                        f"[GET][DEBUG]\t\t{h}\n"+"\t"*11 + f"{r.headers}\n" + "\t"*11 + f"{r.text}")
+                except Exception:
+                    pass
+                return r
+            except Exception as e:
+                last_exception = e
+                if attempt < self.max_retries - 1:
+                    import time
+                    wait_time = (attempt + 1) * 1  # 递增等待时间: 1s, 2s, 3s...
+                    self.LOG.warning(f"[GET][RETRY {attempt + 1}/{self.max_retries}]\t\t{url}\t{domain}\t{e.args}\t等待{wait_time}秒后重试...")
+                    time.sleep(wait_time)
+                else:
+                    self.LOG.error(f"[GET][ERROR]\t\t{url}\t{domain}\t{e.args}\t已重试{self.max_retries}次")
+
+        # 所有重试都失败
+        raise Exception(last_exception.args)
 
     def post(self, url, data=False, json={}, headers=False, noDefaultHeader=False, changeDefaultHeader=False, verify=False, **kwargs):
         h = Header.headerchange(headers, noDefaultHeader, changeDefaultHeader)
@@ -79,24 +101,41 @@ class Network():
             if ip:
                 url = url.replace(domain, ip)
                 h["host"] = domain
-        try:
-            if data == False:
-                r = self.s.post(url, json=json, headers=h,
-                                verify=False, **kwargs)
-                data = json
-            else:
-                r = self.s.post(url, data=data, headers=h,
-                                verify=False, **kwargs)
-        except Exception as e:
-            self.LOG.error(f"[POST][ERROR]\t\t{url}\t{domain}\t{e.args}")
-            raise Exception(e.args)
-        self.LOG.info(f"[POST][INFO]\t\t{r.status_code}\t{r.url}\t{domain}")
-        try:
-            self.LOG.debug(
-                f"[POST][DEBUG]\t\t{h}\n"+"\t"*11 + f"{r.headers}\n" + "\t"*11 + f"{data}\n" + "\t"*11 + f"{r.text}")
-        except Exception:
-            pass
-        return r
+
+        # 设置默认超时
+        if 'timeout' not in kwargs:
+            kwargs['timeout'] = self.timeout
+
+        # 重试机制
+        last_exception = None
+        for attempt in range(self.max_retries):
+            try:
+                if data == False:
+                    r = self.s.post(url, json=json, headers=h, verify=False, **kwargs)
+                    request_data = json
+                else:
+                    r = self.s.post(url, data=data, headers=h, verify=False, **kwargs)
+                    request_data = data
+
+                self.LOG.info(f"[POST][INFO]\t\t{r.status_code}\t{r.url}\t{domain}")
+                try:
+                    self.LOG.debug(
+                        f"[POST][DEBUG]\t\t{h}\n"+"\t"*11 + f"{r.headers}\n" + "\t"*11 + f"{request_data}\n" + "\t"*11 + f"{r.text}")
+                except Exception:
+                    pass
+                return r
+            except Exception as e:
+                last_exception = e
+                if attempt < self.max_retries - 1:
+                    import time
+                    wait_time = (attempt + 1) * 1
+                    self.LOG.warning(f"[POST][RETRY {attempt + 1}/{self.max_retries}]\t\t{url}\t{domain}\t{e.args}\t等待{wait_time}秒后重试...")
+                    time.sleep(wait_time)
+                else:
+                    self.LOG.error(f"[POST][ERROR]\t\t{url}\t{domain}\t{e.args}\t已重试{self.max_retries}次")
+
+        # 所有重试都失败
+        raise Exception(last_exception.args)
 
     def put(self, url, data=False, json={}, headers=False, noDefaultHeader=False, changeDefaultHeader=False, verify=False, **kwargs):
         h = Header.headerchange(headers, noDefaultHeader, changeDefaultHeader)
