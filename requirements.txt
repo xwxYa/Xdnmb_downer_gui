@@ -1,0 +1,13 @@
+# Xdnmb下载器依赖包
+
+# 网络请求
+requests>=2.28.0
+
+# GUI自动获取Cookie功能（可选）
+# 如果不使用"自动获取Cookie"功能，可以不安装selenium
+selenium>=4.0.0
+
+# 注意：
+# 1. 基础功能不需要selenium，只有使用"自动获取Cookie"按钮时才需要
+# 2. 使用selenium需要浏览器驱动，程序会尝试使用Chrome、Edge或Firefox
+# 3. Windows 10及以上系统通常自带Edge浏览器，可直接使用
