@@ -45,20 +45,6 @@ class Xdnmb():
         self.cache("subscribe", fin)
         return fin
 
-    # def get_all(self, id):
-    #     try:
-    #         p = 1
-    #         r = self.po(id, p)
-    #         fin = r
-    #         while len(r["Replies"]) != 0:
-    #             p += 1
-    #             r = self.po(id, p)
-    #             fin["Replies"] += r["Replies"]
-    #     except Exception as e:
-    #         self.err = fin
-    #         raise Exception(e.args)
-    #     return fin
-
     def get_by_id(self, id):
         url = f"https://api.nmb.best/Api/ref/id/{id}"
         r = self.s.get(url).json()
