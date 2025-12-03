@@ -211,7 +211,9 @@ class XdnmbDownloaderGUI:
         userhash = None
 
         # 解析cookie（支持分号分隔或空格分隔）
-        cookie_items = cookie.replace("; ", ";").split(";")
+        # 先统一处理分隔符：将 "; " 和单个空格都替换为分号
+        cookie_normalized = cookie.replace("; ", ";").replace(" ", ";")
+        cookie_items = cookie_normalized.split(";")
         for item in cookie_items:
             if "=" in item:
                 key, value = item.split("=", 1)
