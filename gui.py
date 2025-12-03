@@ -79,9 +79,19 @@ class XdnmbDownloaderGUI:
         ttk.Checkbutton(format_frame, text="EPUB", variable=self.epub_var).grid(row=0, column=0, padx=10)
         ttk.Checkbutton(format_frame, text="TXT", variable=self.txt_var).grid(row=0, column=1, padx=10)
 
+        # 下载模式选择
+        mode_frame = ttk.LabelFrame(main_frame, text="下载模式", padding="10")
+        mode_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
+
+        self.download_mode_var = tk.StringVar(value="all")
+        ttk.Radiobutton(mode_frame, text="下载所有回复", variable=self.download_mode_var,
+                       value="all").grid(row=0, column=0, padx=10, sticky=tk.W)
+        ttk.Radiobutton(mode_frame, text="只下载PO（楼主）的回复", variable=self.download_mode_var,
+                       value="po").grid(row=0, column=1, padx=10, sticky=tk.W)
+
         # 内容过滤选择
         filter_frame = ttk.LabelFrame(main_frame, text="内容过滤（智能优化）", padding="10")
-        filter_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
+        filter_frame.grid(row=6, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
 
         self.filter_auto_var = tk.BooleanVar(value=False)
         self.filter_smart_var = tk.BooleanVar(value=False)
@@ -102,7 +112,7 @@ class XdnmbDownloaderGUI:
 
         # 按钮区域
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=6, column=0, columnspan=3, pady=10)
+        button_frame.grid(row=7, column=0, columnspan=3, pady=10)
 
         self.download_btn = ttk.Button(button_frame, text="开始下载", command=self.start_download)
         self.download_btn.grid(row=0, column=0, padx=5)
@@ -111,12 +121,12 @@ class XdnmbDownloaderGUI:
 
         # 进度条
         self.progress = ttk.Progressbar(main_frame, mode='indeterminate')
-        self.progress.grid(row=7, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
+        self.progress.grid(row=8, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
 
         # 日志显示区域
         log_frame = ttk.LabelFrame(main_frame, text="下载日志", padding="5")
-        log_frame.grid(row=8, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
-        main_frame.rowconfigure(8, weight=1)
+        log_frame.grid(row=9, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        main_frame.rowconfigure(9, weight=1)
 
         self.log_text = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=20)
         self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -126,7 +136,7 @@ class XdnmbDownloaderGUI:
         # 版权信息
         copyright_text = "请勿用于违法用途，工具仅供学习交流使用\n所下载及生成的文件版权属于X岛匿名版与原作者所有，请在24小时内删除"
         ttk.Label(main_frame, text=copyright_text, foreground="red", justify=tk.CENTER).grid(
-            row=9, column=0, columnspan=3, pady=5
+            row=10, column=0, columnspan=3, pady=5
         )
 
     def load_settings(self):
@@ -526,15 +536,18 @@ class XdnmbDownloaderGUI:
             'manual': self.filter_manual_var.get()
         }
 
+        # 获取下载模式
+        download_mode = self.download_mode_var.get()
+
         # 在新线程中执行下载
         download_thread = threading.Thread(
             target=self.download_thread,
-            args=(cookie, thread_id, output_formats, custom_title, force_title, filter_options)
+            args=(cookie, thread_id, output_formats, custom_title, force_title, filter_options, download_mode)
         )
         download_thread.daemon = True
         download_thread.start()
 
-    def download_thread(self, cookie, thread_id, output_formats, custom_title, force_title, filter_options):
+    def download_thread(self, cookie, thread_id, output_formats, custom_title, force_title, filter_options, download_mode):
         """下载线程"""
         self.is_downloading = True
         self.download_btn.config(state='disabled')
@@ -548,9 +561,18 @@ class XdnmbDownloaderGUI:
             # 创建Xdnmb实例
             x = Xdnmb(cookie)
 
+            # 根据下载模式选择处理函数
+            if download_mode == "po":
+                handler = x.po
+                mode_text = "只下载PO（楼主）的回复"
+            else:
+                handler = x.defalut
+                mode_text = "下载所有回复"
+
             # 获取数据
+            self.log(f"下载模式: {mode_text}")
             self.log("正在获取串内容...")
-            fin = x.get_with_cache(thread_id, x.defalut)
+            fin = x.get_with_cache(thread_id, handler)
 
             # 处理标题
             if force_title and custom_title:
