@@ -786,6 +786,19 @@ class XdnmbDownloaderGUI:
         canvas.create_window((0, 0), window=self.subscription_list_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
 
+        # 绑定鼠标滚轮事件（仅在canvas区域内生效）
+        def on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+
+        def bind_mousewheel(event):
+            canvas.bind_all("<MouseWheel>", on_mousewheel)
+
+        def unbind_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+
+        canvas.bind("<Enter>", bind_mousewheel)
+        canvas.bind("<Leave>", unbind_mousewheel)
+
         canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
 

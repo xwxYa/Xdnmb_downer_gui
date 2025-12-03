@@ -1,0 +1,73 @@
+在X岛匿名版的订阅API返回数据结构中，表示'回应数'的字段名是 `reply_count`。 [1](#0-0) 
+
+---
+
+## 详细说明
+
+### API调用和数据解析
+
+订阅API通过 `getFeedInfos()` 函数调用，该函数向 `/Api/feed/uuid/{uuid}/page/{page}` 端点发送请求 [2](#0-1) 。返回的JSON数据被解析为 `FeedInfo` 对象列表。
+
+### FeedInfo模型中的字段映射
+
+在 `FeedInfo.fromJson()` 方法中，JSON字段 `reply_count` 被映射到Dart模型的 `replyCount` 属性 [1](#0-0) ：
+
+```dart
+replyCount: json['reply_count'] ?? '0',
+```
+
+### UI中的使用
+
+这个 `replyCount` 字段在UI中被用来显示回复数量，例如在论坛页面中显示评论数 [3](#0-2) 。
+
+## Notes
+
+- 虽然Dart模型中使用驼峰命名法 `replyCount`，但API返回的原始JSON中字段名是蛇形命名法 `reply_count`
+- 其他可能的字段名如 `huiying`、`response` 等在代码中未出现
+- 该字段为字符串类型，默认值为 '0'
+
+Wiki pages you might want to explore:
+- [Data Access and Pagination (lxchx/lightdao)](/wiki/lxchx/lightdao#2.4)
+- [Core Features (lxchx/lightdao)](/wiki/lxchx/lightdao#3)
+- [Core Data Models (lxchx/lightdao)](/wiki/lxchx/lightdao#7.1)
+
+### Citations
+
+**File:** lib/data/xdao/feed_info.dart (L46-51)
+```dart
+  factory FeedInfo.fromJson(Map<String, dynamic> json) {
+    return FeedInfo(
+      id: json['id'],
+      userId: json['user_id'] ?? '',
+      fid: json['fid'],
+      replyCount: json['reply_count'] ?? '0',
+```
+
+**File:** lib/utils/xdao_api.dart (L586-600)
+```dart
+Future<List<FeedInfo>> getFeedInfos(String uuid, int page) async {
+  final response = await http.get(
+    Uri.parse('https://api.nmb.best/api/feed?uuid=$uuid&page=$page'),
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+  );
+  if (response.statusCode == 200) {
+    if (response.body.trim() == '') {
+      return [];
+    }
+    final List<dynamic> data = json.decode(response.body);
+    return data.map((e) => FeedInfo.fromJson(e)).toList();
+  } else {
+    throw Exception('Failed to load feed info: ${response.statusCode}');
+  }
+}
+```
+
+**File:** lib/ui/page/forum_page.dart (L832-837)
+```dart
+                                                      Text(
+                                                        post.replyCount == 0
+                                                            ? '评论'
+                                                            : post.replyCount
+                                                                  .toString(),
+                                                      ),
+```
