@@ -55,7 +55,13 @@ pip install -r requirements.txt
 
 
 **功能特点**：
-- **Tab页签界面**：单串下载、订阅批量下载和订阅迁移独立Tab页，操作互不干扰
+- **智能内容过滤**：三种过滤模式提升阅读体验
+  - 自动过滤短回复（≤25字且无图片）
+  - 智能过滤无意义回复（fy、mark、jmjp等）
+  - 手动审核模式（逐条确认）
+  - 可视化词汇表管理
+- **双下载模式**：支持下载所有回复或只下载PO的回复
+- **增量更新**：缓存机制支持串更新后只下载新回复
 - **订阅批量下载**：一键下载所有订阅串，支持勾选、预览、错误恢复
   - 可视化订阅列表：显示串ID、标题、内容预览、最后回复时间
   - 灵活选择：全选/反选/清空快捷操作，支持分页浏览
@@ -67,13 +73,7 @@ pip install -r requirements.txt
   - 批量选择支持，支持分页浏览
   - 源保留模式，只复制不删除
   - 错误恢复机制，单个失败不影响整体
-- **智能内容过滤**：三种过滤模式提升阅读体验
-  - 自动过滤短回复（≤25字且无图片）
-  - 智能过滤无意义回复（fy、mark、jmjp等）
-  - 手动审核模式（逐条确认）
-  - 可视化词汇表管理
-- **双下载模式**：支持下载所有回复或只下载PO的回复
-- **增量更新**：缓存机制支持串更新后只下载新回复
+
 
 ### 命令行版本
 
@@ -87,15 +87,7 @@ pip install -r requirements.txt
 
 初次使用请先获取cookies，有以下几种方式：
 
-### 方式一：使用开发者工具（推荐）
-1. 打开浏览器访问 https://www.nmbxd1.com 并登录
-2. 按 F12 打开开发者工具
-3. 切换到 "Console"（控制台）标签
-4. 在底部输入 `document.cookie` 并回车
-5. 复制输出的内容（以 PHPSESSID= 开头）
-6. 粘贴到程序的Cookie输入框
-
-### 方式二：使用书签工具
+### 方式一：使用书签工具
 1. 创建书签，URL填入：
    ```javascript
    javascript:(function(){let domain=document.domain;let cookie=document.cookie;prompt('Cookies: '+domain, cookie)})();
@@ -104,11 +96,49 @@ pip install -r requirements.txt
 3. 点击书签，复制弹出的Cookie内容
 4. 粘贴到程序的Cookie输入框
 
+### 方式二：使用开发者工具
+1. 打开浏览器访问 https://www.nmbxd1.com 并登录
+2. 按 F12 打开开发者工具
+3. 切换到 "Console"（控制台）标签
+4. 在底部输入 `document.cookie` 并回车
+5. 复制输出的内容（以 PHPSESSID= 开头）
+6. 粘贴到程序的Cookie输入框
+
 ## 订阅UUID获取说明
 
 订阅批量下载功能需要订阅UUID，获取方法如下：
 
-### 方法一：使用开发者工具（推荐）
+### 方法一：使用手机客户端（推荐）
+
+操作步骤（根据客户端版本，界面略有差异）：
+
+#### 方式1：从收藏页面进入
+1. 打开X岛客户端，进入"收藏"页面
+2. 点击右上角的设置图标⚙️
+3. 找到"订阅ID"或"配置订阅ID"选项
+4. 即可看到你的订阅UUID
+
+#### 方式2：从设置页面进入
+1. 打开X岛客户端，进入"设置"页面
+2. 选择"通用设置"或"配置"选项
+3. 找到"订阅ID"或"订阅ID管理"
+4. 即可看到你的订阅UUID
+
+**图文示例**：
+
+<table>
+<tr>
+<td><img src="images/蓝岛.jpg" width="250"><br><center>蓝岛</center></td>
+<td><img src="images/黎明岛.jpg" width="250"><br><center>黎明岛K</center></td>
+</tr>
+<tr>
+<td><img src="images/氢岛.jpg" width="250"><br><center>氢岛</center></td>
+<td><img src="images/紫岛.jpg" width="250"><br><center>紫岛</center></td>
+</tr>
+</table>
+
+
+### 方法二：使用开发者工具
 1. 打开浏览器访问 https://www.nmbxd1.com 并登录
 2. 进入"订阅"页面
 3. 按 F12 打开开发者工具
@@ -119,7 +149,7 @@ pip install -r requirements.txt
    - 例如：`https://api.nmb.best/Api/feed/uuid/XXXXXXXX/page/1`
    - UUID就是 `XXXXXXXX` 部分
 
-### 方法二：从浏览器URL获取
+### 方法三：从浏览器URL获取
 1. 在X岛网站进入订阅页面
 2. 查看浏览器地址栏URL
 3. 如果URL包含UUID参数，直接复制
