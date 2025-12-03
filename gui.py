@@ -73,7 +73,7 @@ class XdnmbDownloaderGUI:
         format_frame = ttk.LabelFrame(main_frame, text="输出格式", padding="10")
         format_frame.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
 
-        self.epub_var = tk.BooleanVar(value=True)
+        self.epub_var = tk.BooleanVar(value=False)
         self.txt_var = tk.BooleanVar(value=True)
 
         ttk.Checkbutton(format_frame, text="EPUB", variable=self.epub_var).grid(row=0, column=0, padx=10)
@@ -550,7 +550,7 @@ class XdnmbDownloaderGUI:
 
             # 获取数据
             self.log("正在获取串内容...")
-            fin = x.get_with_cache(thread_id, x.po)
+            fin = x.get_with_cache(thread_id, x.defalut)
 
             # 处理标题
             if force_title and custom_title:
