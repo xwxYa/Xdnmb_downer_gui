@@ -636,6 +636,7 @@ class XdnmbDownloaderGUI:
                 t.add(fin["content"])
 
                 for reply in fin["Replies"]:
+                    t.add("\n——————————")
                     t.add(reply["content"])
 
                 del t
