@@ -102,22 +102,47 @@ class Epub():
         self.s = Net
     
     def download(self,url:list):
+        """
+        下载图片列表（并发版本）
+        失败的图片会被记录但不阻塞程序执行
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
         fin = []
-        for i in url:
+        failed_urls = []
+
+        def download_single(img_url):
+            """下载单张图片"""
             try:
-                r = self.s.get(i)
+                r = self.s.get(img_url, timeout=30)
                 if r.status_code == 200:
-                    with open(f'''.tmp/{self.name}/OEBPS/Images/{i.split("/")[-1]}''',"wb") as f:
+                    filename = img_url.split("/")[-1]
+                    filepath = f'.tmp/{self.name}/OEBPS/Images/{filename}'
+                    with open(filepath, "wb") as f:
                         f.write(r.content)
-                    self.pics.append(i)
-                    fin.append(i)
-            except:
-                print(f"[ERR]:\t{i}\t下载失败,是否将文件正常加入EPUB图片清单和插入章节Y/N")
-                inputs = input('>')
-                if inputs == "Y":
-                    print(f'''[TIPS]:您需要手动下载该文件置于.tmp/{self.name}/OEBPS/Images/{i.split("/")[-1]}''')
-                    self.pics.append(i)
-                    fin.append(i)
+                    return img_url, True, None
+                else:
+                    return img_url, False, f"HTTP {r.status_code}"
+            except Exception as e:
+                return img_url, False, str(e)
+
+        # 使用线程池并发下载，最多5个线程
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_url = {executor.submit(download_single, url): url for url in url}
+
+            for future in as_completed(future_to_url):
+                img_url, success, error_msg = future.result()
+                if success:
+                    self.pics.append(img_url)
+                    fin.append(img_url)
+                else:
+                    failed_urls.append((img_url, error_msg))
+                    print(f"[WARNING] 图片下载失败: {img_url} - {error_msg}")
+
+        # 输出失败统计
+        if failed_urls:
+            print(f"[INFO] 共 {len(url)} 张图片，成功 {len(fin)} 张，失败 {len(failed_urls)} 张")
+
         return fin
 
     def cover(self, text):

@@ -237,6 +237,263 @@ class XdnmbDownloaderGUI:
         self.log(f"Cookie已保存: PHPSESSID={phpsessid[:10]}... userhash={userhash}")
         messagebox.showinfo("成功", "Cookie已保存")
 
+    # ==================== 通用辅助方法 ====================
+
+    def _display_paginated_list(self, config):
+        """
+        通用的分页列表显示方法
+
+        Args:
+            config: 配置字典，包含以下键：
+                - list_frame: 显示列表的Frame
+                - canvas: 包含列表的Canvas（用于计算宽度）
+                - page_label: 显示页码的Label
+                - data: 要显示的数据列表
+                - vars_attr: 存储变量的属性名（如'_all_subscription_vars'）
+                - vars_name: 变量列表的属性名（如'subscription_vars'）
+                - current_page_attr: 当前页码的属性名
+                - total_pages_attr: 总页数的属性名
+                - page_size_var: 每页大小的变量
+                - update_callback: 更新按钮状态的回调函数
+                - empty_text: 数据为空时显示的文本
+        """
+        # 清空现有列表
+        for widget in config['list_frame'].winfo_children():
+            widget.destroy()
+
+        data = config['data']
+
+        # 处理空数据情况
+        if not data:
+            ttk.Label(config['list_frame'], text=config['empty_text'],
+                     foreground="gray", font=("Arial", 10)).pack(pady=20)
+            setattr(self, config['vars_name'], [])
+            setattr(self, config['current_page_attr'], 1)
+            setattr(self, config['total_pages_attr'], 1)
+            config['page_label'].config(text="第 1 页，共 1 页")
+            return
+
+        # 计算分页
+        page_size = config['page_size_var'].get()
+        total_items = len(data)
+        total_pages = (total_items + page_size - 1) // page_size
+        setattr(self, config['total_pages_attr'], total_pages)
+
+        # 确保当前页在有效范围内
+        current_page = getattr(self, config['current_page_attr'])
+        if current_page > total_pages:
+            current_page = total_pages
+        if current_page < 1:
+            current_page = 1
+        setattr(self, config['current_page_attr'], current_page)
+
+        # 计算当前页的数据范围
+        start_idx = (current_page - 1) * page_size
+        end_idx = min(start_idx + page_size, total_items)
+
+        # 更新分页标签
+        config['page_label'].config(text=f"第 {current_page} 页，共 {total_pages} 页 (共{total_items}条)")
+
+        # 重建vars列表（保留所有数据的var，但只显示当前页）
+        if not hasattr(self, config['vars_attr']) or len(getattr(self, config['vars_attr'])) != len(data):
+            setattr(self, config['vars_attr'], [(tk.BooleanVar(value=False), thread) for thread in data])
+
+        setattr(self, config['vars_name'], getattr(self, config['vars_attr']))
+
+        # 动态计算wraplength（canvas宽度 - checkbox和padding的宽度）
+        config['canvas'].update_idletasks()  # 确保获取最新的尺寸
+        canvas_width = config['canvas'].winfo_width()
+        # 减去checkbox宽度(约50) + padding(约80) + scrollbar(约20)
+        dynamic_wraplength = max(400, canvas_width - 150)  # 最小400像素
+
+        # 为当前页的串创建显示
+        all_vars = getattr(self, config['vars_attr'])
+        for idx in range(start_idx, end_idx):
+            var, thread = all_vars[idx]
+
+            # 创建每个串的容器Frame
+            item_frame = ttk.Frame(config['list_frame'])
+            item_frame.pack(fill=tk.X, padx=5, pady=5)
+
+            thread_id = thread['id']
+            title = thread['title']
+            preview = thread['content_preview']
+            time_str = thread['time']
+
+            # 创建勾选框
+            cb = ttk.Checkbutton(item_frame, variable=var,
+                                command=config['update_callback'])
+            cb.grid(row=0, column=0, rowspan=2, sticky=tk.N, padx=5)
+
+            # 显示串信息
+            display_title = title if title and title != '无标题' else '[无标题]'
+            info_text = f"[{thread_id}] {display_title}"
+            ttk.Label(item_frame, text=info_text, font=("Arial", 10, "bold"),
+                     wraplength=dynamic_wraplength).grid(row=0, column=1, sticky=tk.W, pady=2)
+
+            # 直接显示预览内容
+            ttk.Label(item_frame, text=preview, foreground="gray",
+                     wraplength=dynamic_wraplength).grid(row=1, column=1, sticky=tk.W, pady=2)
+
+            # 显示最后回复时间
+            if time_str:
+                ttk.Label(item_frame, text=f"最后回复: {time_str}", foreground="blue",
+                         font=("Arial", 8)).grid(row=2, column=1, sticky=tk.W, pady=2)
+
+            # 分隔线
+            ttk.Separator(config['list_frame'], orient=tk.HORIZONTAL).pack(
+                fill=tk.X, padx=10, pady=5)
+
+        config['update_callback']()
+
+    def _export_formats(self, fin, thread_id, x, output_formats, output_dir=".tmp", progress_callback=None):
+        """
+        通用的格式导出方法
+
+        Args:
+            fin: 串数据字典（包含title、content、Replies等）
+            thread_id: 串ID
+            x: Xdnmb实例（用于网络请求）
+            output_formats: 输出格式列表
+            output_dir: 输出目录，默认.tmp
+            progress_callback: 进度回调函数（可选）
+        """
+        from Epub import mkdir
+        import shutil
+
+        # 确保输出目录存在
+        if output_dir != ".tmp":
+            mkdir(output_dir)
+
+        title = fin["title"]
+        content = fin["content"]
+        replies = fin["Replies"]
+        thread_url = f"https://www.nmbxd1.com/t/{thread_id}"
+
+        # EPUB导出
+        if "epub" in output_formats:
+            if progress_callback:
+                progress_callback("正在生成EPUB...")
+
+            e = Epub(title, thread_url)
+            e.plugin(x.s)
+            e.cover(content)
+            e.add_text(
+                f'''来自{thread_url}<br />版权归属原作者及X岛匿名版<br />请勿用于违法用途，仅供学习交流使用，请在24小时内删除<br />本文档由https://github.com/Rcrwrate/Xdnmb_downer生成''',
+                "来源声明"
+            )
+
+            for i, reply in enumerate(replies):
+                if progress_callback and i % 10 == 0:
+                    progress_callback(f"EPUB处理进度: {i+1}/{len(replies)}")
+
+                if reply["img"] != "":
+                    e.add_text(
+                        reply["content"],
+                        reply["title"],
+                        ["https://image.nmb.best/image/" + reply["img"] + reply["ext"]]
+                    )
+                else:
+                    e.add_text(reply["content"], reply["title"])
+
+            e.finish()
+
+            # 如果需要移动文件
+            if output_dir != ".tmp":
+                shutil.move(f".tmp/{title}.epub", f"{output_dir}/{title}.epub")
+
+            if progress_callback:
+                progress_callback(f"EPUB文件已生成: {output_dir}/{title}.epub")
+
+        # TXT导出
+        if "txt" in output_formats:
+            if progress_callback:
+                progress_callback("正在生成TXT...")
+
+            t = TXT(title)
+            t.add(f'''来自{thread_url}\n版权归属原作者及X岛匿名版\n请勿用于违法用途，仅供学习交流使用，请在24小时内删除\n本文档由https://github.com/Rcrwrate/Xdnmb_downer生成''')
+            t.add(content)
+
+            for reply in replies:
+                t.add("\n——————————")
+                t.add(reply["content"])
+
+            del t
+
+            # 如果需要移动文件
+            if output_dir != ".tmp":
+                shutil.move(f".tmp/{title}.txt", f"{output_dir}/{title}.txt")
+
+            if progress_callback:
+                progress_callback(f"TXT文件已生成: {output_dir}/{title}.txt")
+
+        # Markdown在线图片模式
+        if "md_online" in output_formats:
+            if progress_callback:
+                progress_callback("正在生成Markdown（在线图片）...")
+
+            m = Markdown(title, thread_url, mode='online')
+            m.plugin(x.s)
+            m.add_cover(content)
+
+            for i, reply in enumerate(replies):
+                if progress_callback and i % 10 == 0:
+                    progress_callback(f"Markdown处理进度: {i+1}/{len(replies)}")
+
+                if reply["img"] != "":
+                    m.add_text(
+                        reply["content"],
+                        reply["title"],
+                        ["https://image.nmb.best/image/" + reply["img"] + reply["ext"]]
+                    )
+                else:
+                    m.add_text(reply["content"], reply["title"])
+
+            m.finish()
+
+            # 如果需要移动文件
+            if output_dir != ".tmp":
+                shutil.move(f".tmp/{title}.md", f"{output_dir}/{title}.md")
+
+            if progress_callback:
+                progress_callback(f"Markdown文件已生成: {output_dir}/{title}.md")
+
+        # Markdown本地图片模式
+        if "md_local" in output_formats:
+            if progress_callback:
+                progress_callback("正在生成Markdown（本地图片）...")
+
+            path_type = self.md_path_type_var.get()
+            m = Markdown(title, thread_url, mode='local', path_type=path_type)
+            m.plugin(x.s)
+            m.add_cover(content)
+
+            for i, reply in enumerate(replies):
+                if progress_callback and i % 10 == 0:
+                    progress_callback(f"Markdown处理进度: {i+1}/{len(replies)}")
+
+                if reply["img"] != "":
+                    m.add_text(
+                        reply["content"],
+                        reply["title"],
+                        ["https://image.nmb.best/image/" + reply["img"] + reply["ext"]]
+                    )
+                else:
+                    m.add_text(reply["content"], reply["title"])
+
+            m.finish()
+
+            # 如果需要移动文件
+            if output_dir != ".tmp":
+                shutil.move(f".tmp/{title}.md", f"{output_dir}/{title}.md")
+                if os.path.exists(f".tmp/{title}_files"):
+                    shutil.move(f".tmp/{title}_files", f"{output_dir}/{title}_files")
+
+            if progress_callback:
+                progress_callback(f"Markdown文件已生成: {output_dir}/{title}.md")
+
+    # ==================== 主要功能方法 ====================
+
     def open_xdao(self):
         """在默认浏览器中打开X岛"""
         import webbrowser
@@ -597,98 +854,8 @@ class XdnmbDownloaderGUI:
             self.log("正在导出文件...")
             self.log(f"最终使用的标题: {fin['title']}")
 
-            if "epub" in output_formats:
-                self.log("正在生成EPUB...")
-                e = Epub(fin["title"], f"https://www.nmbxd1.com/t/{thread_id}")
-                e.plugin(x.s)
-                e.cover(fin["content"])
-
-                e.add_text(
-                    f'''来自https://www.nmbxd1.com/t/{thread_id}<br />版权归属原作者及X岛匿名版<br />请勿用于违法用途，仅供学习交流使用，请在24小时内删除<br />本文档由https://github.com/Rcrwrate/Xdnmb_downer生成''',
-                    "来源声明"
-                )
-
-                msg = fin["Replies"]
-                for i, reply in enumerate(msg):
-                    if i % 10 == 0:
-                        self.log(f"处理进度: {i+1}/{len(msg)}")
-
-                    if reply["img"] != "":
-                        e.add_text(
-                            reply["content"],
-                            reply["title"],
-                            ["https://image.nmb.best/image/" + reply["img"] + reply["ext"]]
-                        )
-                    else:
-                        e.add_text(reply["content"], reply["title"])
-
-                e.finish()
-                self.log(f"EPUB文件已生成: .tmp/{fin['title']}.epub")
-
-            if "txt" in output_formats:
-                self.log("正在生成TXT...")
-                t = TXT(fin["title"])
-                t.add(f'''来自https://www.nmbxd1.com/t/{thread_id}\n版权归属原作者及X岛匿名版\n请勿用于违法用途，仅供学习交流使用，请在24小时内删除\n本文档由https://github.com/Rcrwrate/Xdnmb_downer生成''')
-                t.add(fin["content"])
-
-                for reply in fin["Replies"]:
-                    t.add("\n——————————")
-                    t.add(reply["content"])
-
-                del t
-                self.log(f"TXT文件已生成: .tmp/{fin['title']}.txt")
-
-            if "md_online" in output_formats:
-                self.log("正在生成Markdown（在线图片）...")
-                m = Markdown(fin["title"], f"https://www.nmbxd1.com/t/{thread_id}", mode='online')
-                m.plugin(x.s)
-                m.add_cover(fin["content"])
-
-                msg = fin["Replies"]
-                for i, reply in enumerate(msg):
-                    if i % 10 == 0:
-                        self.log(f"处理进度: {i+1}/{len(msg)}")
-
-                    if reply["img"] != "":
-                        m.add_text(
-                            reply["content"],
-                            reply["title"],
-                            ["https://image.nmb.best/image/" + reply["img"] + reply["ext"]]
-                        )
-                    else:
-                        m.add_text(reply["content"], reply["title"])
-
-                m.finish()
-                self.log(f"Markdown文件已生成: .tmp/{fin['title']}.md")
-
-            if "md_local" in output_formats:
-                # 获取路径类型
-                path_type = self.md_path_type_var.get()
-                path_desc = "相对路径" if path_type == "relative" else "绝对路径"
-                self.log(f"正在生成Markdown（本地图片，{path_desc}）...")
-
-                m = Markdown(fin["title"], f"https://www.nmbxd1.com/t/{thread_id}",
-                           mode='local', path_type=path_type)
-                m.plugin(x.s)
-                m.add_cover(fin["content"])
-
-                msg = fin["Replies"]
-                for i, reply in enumerate(msg):
-                    if i % 10 == 0:
-                        self.log(f"处理进度: {i+1}/{len(msg)}")
-
-                    if reply["img"] != "":
-                        m.add_text(
-                            reply["content"],
-                            reply["title"],
-                            ["https://image.nmb.best/image/" + reply["img"] + reply["ext"]]
-                        )
-                    else:
-                        m.add_text(reply["content"], reply["title"])
-
-                m.finish()
-                self.log(f"Markdown文件已生成: .tmp/{fin['title']}.md ({path_desc})")
-                self.log(f"图片文件夹: .tmp/{fin['title']}_files/images/")
+            # 使用通用导出方法
+            self._export_formats(fin, thread_id, x, output_formats, progress_callback=self.log)
 
             self.log("="*50)
             self.log("下载完成！文件保存在 .tmp 文件夹中")
@@ -998,87 +1165,19 @@ class XdnmbDownloaderGUI:
 
     def display_migrate_list(self):
         """显示源订阅列表（支持分页）"""
-        # 清空现有列表
-        for widget in self.migrate_list_frame.winfo_children():
-            widget.destroy()
-
-        if not self.migrate_data:
-            ttk.Label(self.migrate_list_frame, text="没有订阅内容",
-                     foreground="gray", font=("Arial", 10)).pack(pady=20)
-            self.migrate_vars = []
-            self.migrate_current_page = 1
-            self.migrate_total_pages = 1
-            self.migrate_page_label.config(text="第 1 页，共 1 页")
-            return
-
-        # 计算分页
-        page_size = self.migrate_page_size_var.get()
-        total_items = len(self.migrate_data)
-        self.migrate_total_pages = (total_items + page_size - 1) // page_size
-
-        # 确保当前页在有效范围内
-        if self.migrate_current_page > self.migrate_total_pages:
-            self.migrate_current_page = self.migrate_total_pages
-        if self.migrate_current_page < 1:
-            self.migrate_current_page = 1
-
-        # 计算当前页的数据范围
-        start_idx = (self.migrate_current_page - 1) * page_size
-        end_idx = min(start_idx + page_size, total_items)
-
-        # 更新分页标签
-        self.migrate_page_label.config(text=f"第 {self.migrate_current_page} 页，共 {self.migrate_total_pages} 页 (共{total_items}条)")
-
-        # 重建vars列表
-        if not hasattr(self, '_all_migrate_vars') or len(self._all_migrate_vars) != len(self.migrate_data):
-            self._all_migrate_vars = [(tk.BooleanVar(value=False), thread) for thread in self.migrate_data]
-
-        self.migrate_vars = self._all_migrate_vars
-
-        # 动态计算wraplength（canvas宽度 - checkbox和padding的宽度）
-        self.migrate_canvas.update_idletasks()  # 确保获取最新的尺寸
-        canvas_width = self.migrate_canvas.winfo_width()
-        # 减去checkbox宽度(约50) + padding(约80) + scrollbar(约20)
-        dynamic_wraplength = max(400, canvas_width - 150)  # 最小400像素
-
-        # 为当前页的串创建显示
-        for idx in range(start_idx, end_idx):
-            var, thread = self._all_migrate_vars[idx]
-
-            # 创建每个串的容器Frame
-            item_frame = ttk.Frame(self.migrate_list_frame)
-            item_frame.pack(fill=tk.X, padx=5, pady=5)
-
-            thread_id = thread['id']
-            title = thread['title']
-            preview = thread['content_preview']
-            time_str = thread['time']
-
-            # 创建勾选框
-            cb = ttk.Checkbutton(item_frame, variable=var,
-                                command=self.update_migrate_btn)
-            cb.grid(row=0, column=0, rowspan=2, sticky=tk.N, padx=5)
-
-            # 显示串信息
-            display_title = title if title and title != '无标题' else '[无标题]'
-            info_text = f"[{thread_id}] {display_title}"
-            ttk.Label(item_frame, text=info_text, font=("Arial", 10, "bold"),
-                     wraplength=dynamic_wraplength).grid(row=0, column=1, sticky=tk.W, pady=2)
-
-            # 直接显示预览内容
-            ttk.Label(item_frame, text=preview, foreground="gray",
-                     wraplength=dynamic_wraplength).grid(row=1, column=1, sticky=tk.W, pady=2)
-
-            # 显示最后回复时间
-            if time_str:
-                ttk.Label(item_frame, text=f"最后回复: {time_str}", foreground="blue",
-                         font=("Arial", 8)).grid(row=2, column=1, sticky=tk.W, pady=2)
-
-            # 分隔线
-            ttk.Separator(self.migrate_list_frame, orient=tk.HORIZONTAL).pack(
-                fill=tk.X, padx=10, pady=5)
-
-        self.update_migrate_btn()
+        self._display_paginated_list({
+            'list_frame': self.migrate_list_frame,
+            'canvas': self.migrate_canvas,
+            'page_label': self.migrate_page_label,
+            'data': self.migrate_data,
+            'vars_attr': '_all_migrate_vars',
+            'vars_name': 'migrate_vars',
+            'current_page_attr': 'migrate_current_page',
+            'total_pages_attr': 'migrate_total_pages',
+            'page_size_var': self.migrate_page_size_var,
+            'update_callback': self.update_migrate_btn,
+            'empty_text': '没有订阅内容'
+        })
 
     def migrate_prev_page(self):
         """上一页"""
@@ -1304,88 +1403,19 @@ class XdnmbDownloaderGUI:
 
     def display_subscription_list(self):
         """显示订阅列表（支持分页）"""
-        # 清空现有列表
-        for widget in self.subscription_list_frame.winfo_children():
-            widget.destroy()
-
-        if not self.subscription_data:
-            ttk.Label(self.subscription_list_frame, text="没有订阅内容",
-                     foreground="gray", font=("Arial", 10)).pack(pady=20)
-            self.subscription_vars = []
-            self.current_page = 1
-            self.total_pages = 1
-            self.page_label.config(text="第 1 页，共 1 页")
-            return
-
-        # 计算分页
-        page_size = self.page_size_var.get()
-        total_items = len(self.subscription_data)
-        self.total_pages = (total_items + page_size - 1) // page_size
-
-        # 确保当前页在有效范围内
-        if self.current_page > self.total_pages:
-            self.current_page = self.total_pages
-        if self.current_page < 1:
-            self.current_page = 1
-
-        # 计算当前页的数据范围
-        start_idx = (self.current_page - 1) * page_size
-        end_idx = min(start_idx + page_size, total_items)
-        current_page_data = self.subscription_data[start_idx:end_idx]
-
-        # 更新分页标签
-        self.page_label.config(text=f"第 {self.current_page} 页，共 {self.total_pages} 页 (共{total_items}条)")
-
-        # 重建subscription_vars列表（保留所有数据的var，但只显示当前页）
-        if not hasattr(self, '_all_subscription_vars') or len(self._all_subscription_vars) != len(self.subscription_data):
-            self._all_subscription_vars = [(tk.BooleanVar(value=False), thread) for thread in self.subscription_data]
-
-        self.subscription_vars = self._all_subscription_vars
-
-        # 动态计算wraplength（canvas宽度 - checkbox和padding的宽度）
-        self.subscription_canvas.update_idletasks()  # 确保获取最新的尺寸
-        canvas_width = self.subscription_canvas.winfo_width()
-        # 减去checkbox宽度(约50) + padding(约80) + scrollbar(约20)
-        dynamic_wraplength = max(400, canvas_width - 150)  # 最小400像素
-
-        # 为当前页的串创建显示
-        for idx in range(start_idx, end_idx):
-            var, thread = self._all_subscription_vars[idx]
-
-            # 创建每个串的容器Frame
-            item_frame = ttk.Frame(self.subscription_list_frame)
-            item_frame.pack(fill=tk.X, padx=5, pady=5)
-
-            thread_id = thread['id']
-            title = thread['title']
-            preview = thread['content_preview']
-            time_str = thread['time']
-
-            # 创建勾选框
-            cb = ttk.Checkbutton(item_frame, variable=var,
-                                command=self.update_batch_download_btn)
-            cb.grid(row=0, column=0, rowspan=2, sticky=tk.N, padx=5)
-
-            # 显示串信息
-            display_title = title if title and title != '无标题' else '[无标题]'
-            info_text = f"[{thread_id}] {display_title}"
-            ttk.Label(item_frame, text=info_text, font=("Arial", 10, "bold"),
-                     wraplength=dynamic_wraplength).grid(row=0, column=1, sticky=tk.W, pady=2)
-
-            # 直接显示预览内容
-            ttk.Label(item_frame, text=preview, foreground="gray",
-                     wraplength=dynamic_wraplength).grid(row=1, column=1, sticky=tk.W, pady=2)
-
-            # 显示最后回复时间
-            if time_str:
-                ttk.Label(item_frame, text=f"最后回复: {time_str}", foreground="blue",
-                         font=("Arial", 8)).grid(row=2, column=1, sticky=tk.W, pady=2)
-
-            # 分隔线
-            ttk.Separator(self.subscription_list_frame, orient=tk.HORIZONTAL).pack(
-                fill=tk.X, padx=10, pady=5)
-
-        self.update_batch_download_btn()
+        self._display_paginated_list({
+            'list_frame': self.subscription_list_frame,
+            'canvas': self.subscription_canvas,
+            'page_label': self.page_label,
+            'data': self.subscription_data,
+            'vars_attr': '_all_subscription_vars',
+            'vars_name': 'subscription_vars',
+            'current_page_attr': 'current_page',
+            'total_pages_attr': 'total_pages',
+            'page_size_var': self.page_size_var,
+            'update_callback': self.update_batch_download_btn,
+            'empty_text': '没有订阅内容'
+        })
 
     def prev_page(self):
         """上一页"""
@@ -1537,77 +1567,8 @@ class XdnmbDownloaderGUI:
 
     def export_thread_to_folder(self, fin, thread_id, folder_path, output_formats, x):
         """导出串到指定文件夹"""
-        from Epub import mkdir
-
-        # 确保文件夹存在
-        mkdir(folder_path)
-
-        # 根据格式导出
-        if "epub" in output_formats:
-            # EPUB导出逻辑（简化版，直接使用现有代码）
-            e = Epub(fin["title"], f"https://www.nmbxd1.com/t/{thread_id}")
-            e.plugin(x.s)
-            e.cover(fin["content"])
-            e.add_text(
-                f'''来自https://www.nmbxd1.com/t/{thread_id}<br />版权归属原作者及X岛匿名版''',
-                "来源声明"
-            )
-            for reply in fin["Replies"]:
-                if reply["img"] != "":
-                    e.add_text(reply["content"], reply["title"],
-                             ["https://image.nmb.best/image/" + reply["img"] + reply["ext"]])
-                else:
-                    e.add_text(reply["content"], reply["title"])
-            e.finish()
-            # 移动文件到目标文件夹
-            import shutil
-            shutil.move(f".tmp/{fin['title']}.epub", f"{folder_path}/{fin['title']}.epub")
-
-        if "txt" in output_formats:
-            t = TXT(fin["title"])
-            t.add(f'''来自https://www.nmbxd1.com/t/{thread_id}\n版权归属原作者及X岛匿名版''')
-            t.add(fin["content"])
-            for reply in fin["Replies"]:
-                t.add("\n——————————")
-                t.add(reply["content"])
-            del t
-            # 移动文件
-            import shutil
-            shutil.move(f".tmp/{fin['title']}.txt", f"{folder_path}/{fin['title']}.txt")
-
-        if "md_online" in output_formats:
-            m = Markdown(fin["title"], f"https://www.nmbxd1.com/t/{thread_id}", mode='online')
-            m.plugin(x.s)
-            m.add_cover(fin["content"])
-            for reply in fin["Replies"]:
-                if reply["img"] != "":
-                    m.add_text(reply["content"], reply["title"],
-                             ["https://image.nmb.best/image/" + reply["img"] + reply["ext"]])
-                else:
-                    m.add_text(reply["content"], reply["title"])
-            m.finish()
-            # 移动文件
-            import shutil
-            shutil.move(f".tmp/{fin['title']}.md", f"{folder_path}/{fin['title']}.md")
-
-        if "md_local" in output_formats:
-            path_type = self.md_path_type_var.get()
-            m = Markdown(fin["title"], f"https://www.nmbxd1.com/t/{thread_id}",
-                       mode='local', path_type=path_type)
-            m.plugin(x.s)
-            m.add_cover(fin["content"])
-            for reply in fin["Replies"]:
-                if reply["img"] != "":
-                    m.add_text(reply["content"], reply["title"],
-                             ["https://image.nmb.best/image/" + reply["img"] + reply["ext"]])
-                else:
-                    m.add_text(reply["content"], reply["title"])
-            m.finish()
-            # 移动文件和图片文件夹
-            import shutil
-            shutil.move(f".tmp/{fin['title']}.md", f"{folder_path}/{fin['title']}.md")
-            if os.path.exists(f".tmp/{fin['title']}_files"):
-                shutil.move(f".tmp/{fin['title']}_files", f"{folder_path}/{fin['title']}_files")
+        # 使用通用导出方法（导出到指定文件夹）
+        self._export_formats(fin, thread_id, x, output_formats, output_dir=folder_path)
 
 def main():
     root = tk.Tk()
