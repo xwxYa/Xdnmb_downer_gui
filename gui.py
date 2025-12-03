@@ -979,17 +979,24 @@ class XdnmbDownloaderGUI:
             cb.grid(row=0, column=0, rowspan=2, sticky=tk.N, padx=5)
 
             # 显示串信息
-            info_text = f"[{thread_id}] {title}"
+            display_title = title if title and title != '无标题' else '[无标题]'
+            info_text = f"[{thread_id}] {display_title}"
             ttk.Label(item_frame, text=info_text, font=("Arial", 10, "bold"),
-                     wraplength=600).grid(row=0, column=1, sticky=tk.W, pady=2)
+                     wraplength=750).grid(row=0, column=1, sticky=tk.W, pady=2)
 
-            # 直接显示预览内容，不要"内容预览:"标签
+            # 直接显示预览内容
             ttk.Label(item_frame, text=preview, foreground="gray",
-                     wraplength=600).grid(row=1, column=1, sticky=tk.W, pady=2)
+                     wraplength=750).grid(row=1, column=1, sticky=tk.W, pady=2)
 
-            meta_text = f"回复数: {reply_count}  |  最后回复: {time_str}"
-            ttk.Label(item_frame, text=meta_text, foreground="blue",
-                     font=("Arial", 8)).grid(row=2, column=1, sticky=tk.W, pady=2)
+            # 智能显示元信息：如果回复数未知则隐藏
+            if reply_count != '?':
+                meta_text = f"回复数: {reply_count}  |  最后回复: {time_str}"
+            else:
+                meta_text = f"最后回复: {time_str}" if time_str else ""
+
+            if meta_text:
+                ttk.Label(item_frame, text=meta_text, foreground="blue",
+                         font=("Arial", 8)).grid(row=2, column=1, sticky=tk.W, pady=2)
 
             # 分隔线
             ttk.Separator(self.subscription_list_frame, orient=tk.HORIZONTAL).pack(
