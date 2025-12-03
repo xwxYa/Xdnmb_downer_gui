@@ -86,7 +86,7 @@ class XdnmbDownloaderGUI:
         self.download_mode_var = tk.StringVar(value="all")
         ttk.Radiobutton(mode_frame, text="下载所有回复", variable=self.download_mode_var,
                        value="all").grid(row=0, column=0, padx=10, sticky=tk.W)
-        ttk.Radiobutton(mode_frame, text="只下载PO（楼主）的回复", variable=self.download_mode_var,
+        ttk.Radiobutton(mode_frame, text="只下载PO的回复", variable=self.download_mode_var,
                        value="po").grid(row=0, column=1, padx=10, sticky=tk.W)
 
         # 内容过滤选择
@@ -564,7 +564,7 @@ class XdnmbDownloaderGUI:
             # 根据下载模式选择处理函数
             if download_mode == "po":
                 handler = x.po
-                mode_text = "只下载PO（楼主）的回复"
+                mode_text = "只下载PO的回复"
             else:
                 handler = x.defalut
                 mode_text = "下载所有回复"
@@ -575,14 +575,19 @@ class XdnmbDownloaderGUI:
             fin = x.get_with_cache(thread_id, handler)
 
             # 处理标题
+            original_title = fin["title"]
+            self.log(f"从API获取的原始标题: {original_title}")
+            self.log(f"自定义标题: {custom_title if custom_title else '(未设置)'}")
+            self.log(f"强制覆盖标题: {'是' if force_title else '否'}")
+
             if force_title and custom_title:
                 fin["title"] = custom_title
-                self.log(f"使用自定义标题: {custom_title}")
+                self.log(f"✓ 使用自定义标题: {custom_title}")
             elif custom_title and fin["title"] == "无标题":
                 fin["title"] = custom_title
-                self.log(f"使用自定义标题: {custom_title}")
+                self.log(f"✓ 原标题为空，使用自定义标题: {custom_title}")
             else:
-                self.log(f"串标题: {fin['title']}")
+                self.log(f"✓ 使用原始标题: {fin['title']}")
 
             fin["id"] = thread_id
             original_count = len(fin['Replies'])
@@ -599,6 +604,7 @@ class XdnmbDownloaderGUI:
 
             # 导出文件
             self.log("正在导出文件...")
+            self.log(f"最终使用的标题: {fin['title']}")
 
             if "epub" in output_formats:
                 self.log("正在生成EPUB...")

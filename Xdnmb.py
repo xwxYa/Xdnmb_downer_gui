@@ -123,6 +123,10 @@ class Xdnmb():
 
     @staticmethod
     def cache(id, fin={}):
+        # Ensure .log folder exists
+        if not os.path.exists(".log"):
+            os.makedirs(".log")
+
         path = os.path.join(".log", f"{id}.json")
         if fin == {}:
             try:
