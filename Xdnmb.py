@@ -58,10 +58,9 @@ class Xdnmb():
                     'title': 标题,
                     'content': 内容,
                     'content_preview': 内容预览（前100字），
-                    'reply_count': 回复数（估算）,
                     'img': 图片,
                     'ext': 图片扩展名,
-                    'time': 时间（如果有）
+                    'time': 时间
                 },
                 ...
             ]
@@ -86,13 +85,7 @@ class Xdnmb():
             content_clean = content_clean.strip()
             formatted['content_preview'] = content_clean[:100] + ('...' if len(content_clean) > 100 else '')
 
-            # 回复数（尝试多种可能的字段名）
-            reply_count = item.get('replyCount') or item.get('ReplyCount') or \
-                         item.get('reply_count') or item.get('replys') or \
-                         item.get('Replys') or '?'
-            formatted['reply_count'] = reply_count
-
-            # 时间（如果API提供）
+            # 时间
             formatted['time'] = item.get('now', item.get('time', item.get('Time', '')))
 
             formatted_list.append(formatted)

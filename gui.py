@@ -970,7 +970,6 @@ class XdnmbDownloaderGUI:
             thread_id = thread['id']
             title = thread['title']
             preview = thread['content_preview']
-            reply_count = thread['reply_count']
             time_str = thread['time']
 
             # 创建勾选框
@@ -988,14 +987,9 @@ class XdnmbDownloaderGUI:
             ttk.Label(item_frame, text=preview, foreground="gray",
                      wraplength=750).grid(row=1, column=1, sticky=tk.W, pady=2)
 
-            # 智能显示元信息：如果回复数未知则隐藏
-            if reply_count != '?':
-                meta_text = f"回复数: {reply_count}  |  最后回复: {time_str}"
-            else:
-                meta_text = f"最后回复: {time_str}" if time_str else ""
-
-            if meta_text:
-                ttk.Label(item_frame, text=meta_text, foreground="blue",
+            # 显示最后回复时间
+            if time_str:
+                ttk.Label(item_frame, text=f"最后回复: {time_str}", foreground="blue",
                          font=("Arial", 8)).grid(row=2, column=1, sticky=tk.W, pady=2)
 
             # 分隔线
