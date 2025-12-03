@@ -19,7 +19,7 @@ class Xdnmb():
         self.success(r)
         return self.remove_tips(r)
 
-    def defalut(self, id, page):
+    def all(self, id, page):
         url = f"https://api.nmb.best/Api/thread/id/{id}/page/{page}"
         r = self.s.get(url).json()
         self.success(r)

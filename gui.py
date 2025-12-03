@@ -565,7 +565,7 @@ class XdnmbDownloaderGUI:
                 handler = x.po
                 mode_text = "只下载PO的回复"
             else:
-                handler = x.defalut
+                handler = x.all
                 mode_text = "下载所有回复"
 
             # 获取数据
