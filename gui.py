@@ -65,9 +65,9 @@ class XdnmbDownloaderGUI:
         self.title_entry = ttk.Entry(main_frame, width=50)
         self.title_entry.grid(row=3, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
 
-        # 强制覆盖标题选项
-        self.force_title_var = tk.BooleanVar()
-        ttk.Checkbutton(main_frame, text="强制覆盖标题", variable=self.force_title_var).grid(row=3, column=2, padx=5, pady=5)
+        # 标题说明
+        title_hint = ttk.Label(main_frame, text="留空则使用原标题，填写则使用自定义标题", foreground="gray")
+        title_hint.grid(row=3, column=2, sticky=tk.W, padx=5)
 
         # 输出格式选择
         format_frame = ttk.LabelFrame(main_frame, text="输出格式", padding="10")
@@ -527,7 +527,6 @@ class XdnmbDownloaderGUI:
 
         # 获取标题设置
         custom_title = self.title_entry.get().strip()
-        force_title = self.force_title_var.get()
 
         # 获取过滤选项
         filter_options = {
@@ -542,12 +541,12 @@ class XdnmbDownloaderGUI:
         # 在新线程中执行下载
         download_thread = threading.Thread(
             target=self.download_thread,
-            args=(cookie, thread_id, output_formats, custom_title, force_title, filter_options, download_mode)
+            args=(cookie, thread_id, output_formats, custom_title, filter_options, download_mode)
         )
         download_thread.daemon = True
         download_thread.start()
 
-    def download_thread(self, cookie, thread_id, output_formats, custom_title, force_title, filter_options, download_mode):
+    def download_thread(self, cookie, thread_id, output_formats, custom_title, filter_options, download_mode):
         """下载线程"""
         self.is_downloading = True
         self.download_btn.config(state='disabled')
@@ -578,14 +577,10 @@ class XdnmbDownloaderGUI:
             original_title = fin["title"]
             self.log(f"从API获取的原始标题: {original_title}")
             self.log(f"自定义标题: {custom_title if custom_title else '(未设置)'}")
-            self.log(f"强制覆盖标题: {'是' if force_title else '否'}")
 
-            if force_title and custom_title:
+            if custom_title:
                 fin["title"] = custom_title
                 self.log(f"✓ 使用自定义标题: {custom_title}")
-            elif custom_title and fin["title"] == "无标题":
-                fin["title"] = custom_title
-                self.log(f"✓ 原标题为空，使用自定义标题: {custom_title}")
             else:
                 self.log(f"✓ 使用原始标题: {fin['title']}")
 

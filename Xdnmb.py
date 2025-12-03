@@ -80,13 +80,14 @@ class Xdnmb():
         return fin
 
     def get_with_cache(self, id, handle):
-        c = self.cache(f"{id}_{handle.__name__}")
+        cache_key = f"{id}_{handle.__name__}"
+        c = self.cache(cache_key)
         if c:
             fin = self.get_all(id, handle, p=len(c)+1, fin=c)
             return self.transform(fin)
         else:
             fin = self.get_all(id, handle)
-            self.cache(f"{id}_{handle.__name__}", fin[:-2])
+            self.cache(cache_key, fin[:-2])
             return self.transform(fin)
 
     @staticmethod
