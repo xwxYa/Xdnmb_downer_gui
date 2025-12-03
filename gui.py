@@ -13,7 +13,8 @@ class XdnmbDownloaderGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Xdnmb下载器 GUI版")
-        self.root.geometry("800x700")
+        self.root.geometry("900x750")
+        self.root.minsize(850, 650)  # 设置最小窗口尺寸
         self.root.resizable(True, True)
 
         self.conf = CONF("Xdnmb")
@@ -55,7 +56,7 @@ class XdnmbDownloaderGUI:
 
         # Cookie设置区域
         ttk.Label(main_frame, text="Cookie设置:").grid(row=0, column=0, sticky=tk.W, pady=5)
-        self.cookie_entry = ttk.Entry(main_frame, width=50)
+        self.cookie_entry = ttk.Entry(main_frame)
         self.cookie_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
 
         # Cookie按钮框架
@@ -74,12 +75,12 @@ class XdnmbDownloaderGUI:
 
         # 串ID输入
         ttk.Label(main_frame, text="串ID(或网址):").grid(row=2, column=0, sticky=tk.W, pady=5)
-        self.id_entry = ttk.Entry(main_frame, width=50)
+        self.id_entry = ttk.Entry(main_frame)
         self.id_entry.grid(row=2, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
 
         # 标题设置
         ttk.Label(main_frame, text="自定义标题:").grid(row=3, column=0, sticky=tk.W, pady=5)
-        self.title_entry = ttk.Entry(main_frame, width=50)
+        self.title_entry = ttk.Entry(main_frame)
         self.title_entry.grid(row=3, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
 
         # 标题说明
@@ -159,9 +160,9 @@ class XdnmbDownloaderGUI:
         # 日志显示区域
         log_frame = ttk.LabelFrame(main_frame, text="下载日志", padding="5")
         log_frame.grid(row=9, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
-        main_frame.rowconfigure(9, weight=2)
+        main_frame.rowconfigure(9, weight=3)  # 增加权重，确保日志区域始终可见
 
-        self.log_text = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=15)
+        self.log_text = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=12)
         self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
@@ -716,7 +717,7 @@ class XdnmbDownloaderGUI:
         uuid_frame.columnconfigure(1, weight=1)
 
         ttk.Label(uuid_frame, text="UUID:").grid(row=0, column=0, sticky=tk.W, padx=5)
-        self.sub_uuid_entry = ttk.Entry(uuid_frame, width=50)
+        self.sub_uuid_entry = ttk.Entry(uuid_frame)
         self.sub_uuid_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=5)
 
         btn_frame = ttk.Frame(uuid_frame)
@@ -739,6 +740,13 @@ class XdnmbDownloaderGUI:
         ttk.Checkbutton(format_checks_frame, text="TXT", variable=self.txt_var).pack(side=tk.LEFT, padx=5)
         ttk.Checkbutton(format_checks_frame, text="Markdown(在线)", variable=self.md_online_var).pack(side=tk.LEFT, padx=5)
         ttk.Checkbutton(format_checks_frame, text="Markdown(本地)", variable=self.md_local_var).pack(side=tk.LEFT, padx=5)
+
+        # Markdown路径类型
+        md_path_frame = ttk.Frame(settings_frame)
+        md_path_frame.grid(row=0, column=2, sticky=tk.W, padx=5)
+        ttk.Label(md_path_frame, text="本地图片路径:", foreground="gray").pack(side=tk.LEFT)
+        ttk.Radiobutton(md_path_frame, text="相对", variable=self.md_path_type_var, value="relative").pack(side=tk.LEFT, padx=2)
+        ttk.Radiobutton(md_path_frame, text="绝对", variable=self.md_path_type_var, value="absolute").pack(side=tk.LEFT, padx=2)
 
         # 下载模式（使用单串下载的变量，共享设置）
         mode_label = ttk.Label(settings_frame, text="下载模式:")
@@ -803,11 +811,12 @@ class XdnmbDownloaderGUI:
         batch_btn_frame = ttk.Frame(sub_frame)
         batch_btn_frame.grid(row=4, column=0, pady=5)
 
-        ttk.Button(batch_btn_frame, text="全选", command=self.select_all_subscriptions).grid(row=0, column=0, padx=5)
-        ttk.Button(batch_btn_frame, text="反选", command=self.invert_selection).grid(row=0, column=1, padx=5)
-        ttk.Button(batch_btn_frame, text="清空", command=self.clear_selection).grid(row=0, column=2, padx=5)
+        ttk.Button(batch_btn_frame, text="全选当前页", command=self.select_current_page).grid(row=0, column=0, padx=5)
+        ttk.Button(batch_btn_frame, text="全选所有页", command=self.select_all_pages).grid(row=0, column=1, padx=5)
+        ttk.Button(batch_btn_frame, text="反选", command=self.invert_selection).grid(row=0, column=2, padx=5)
+        ttk.Button(batch_btn_frame, text="清空", command=self.clear_selection).grid(row=0, column=3, padx=5)
         self.batch_download_btn = ttk.Button(batch_btn_frame, text="开始批量下载 (已选0个)", command=self.start_batch_download)
-        self.batch_download_btn.grid(row=0, column=3, padx=5)
+        self.batch_download_btn.grid(row=0, column=4, padx=5)
 
         # 存储订阅数据
         self.subscription_data = []  # 存储获取的订阅列表
@@ -1005,12 +1014,28 @@ class XdnmbDownloaderGUI:
         self.current_page = 1  # 重置到第一页
         self.display_subscription_list()
 
-    def select_all_subscriptions(self):
-        """全选订阅（全选所有页的串，不只是当前页）"""
+    def select_current_page(self):
+        """全选当前页"""
+        if not self.subscription_data:
+            return
+
+        page_size = self.page_size_var.get()
+        start_idx = (self.current_page - 1) * page_size
+        end_idx = min(start_idx + page_size, len(self.subscription_data))
+
+        for idx in range(start_idx, end_idx):
+            var, _ = self.subscription_vars[idx]
+            var.set(True)
+
+        self.update_batch_download_btn()
+        self.log(f"已全选当前页（第{self.current_page}页）")
+
+    def select_all_pages(self):
+        """全选所有页的串"""
         for var, _ in self.subscription_vars:
             var.set(True)
         self.update_batch_download_btn()
-        self.log("已全选所有订阅串")
+        self.log(f"已全选所有{len(self.subscription_vars)}个订阅串")
 
     def invert_selection(self):
         """反选"""

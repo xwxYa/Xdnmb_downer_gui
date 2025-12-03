@@ -86,11 +86,14 @@ class Xdnmb():
             content_clean = content_clean.strip()
             formatted['content_preview'] = content_clean[:100] + ('...' if len(content_clean) > 100 else '')
 
-            # 回复数（如果API提供replyCount字段）
-            formatted['reply_count'] = item.get('replyCount', item.get('ReplyCount', '?'))
+            # 回复数（尝试多种可能的字段名）
+            reply_count = item.get('replyCount') or item.get('ReplyCount') or \
+                         item.get('reply_count') or item.get('replys') or \
+                         item.get('Replys') or '?'
+            formatted['reply_count'] = reply_count
 
             # 时间（如果API提供）
-            formatted['time'] = item.get('now', item.get('time', ''))
+            formatted['time'] = item.get('now', item.get('time', item.get('Time', '')))
 
             formatted_list.append(formatted)
 
