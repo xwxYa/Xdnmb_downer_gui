@@ -65,7 +65,9 @@ class Xdnmb():
         self.success(r)
         return r
 
-    def get_all(self, id, handle, p=1, fin=[]):
+    def get_all(self, id, handle, p=1, fin=None):
+        if fin is None:
+            fin = []
         try:
             r = handle(id, p)
             fin.append(r)
