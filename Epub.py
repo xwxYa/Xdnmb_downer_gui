@@ -192,6 +192,7 @@ class Epub():
 
 class TXT():
     def __init__(self,name) -> None:
+        mkdir(".tmp")
         self.f = open(f".tmp/{name}.txt","w",encoding="utf-8")
     
     def add(self,text):
@@ -199,7 +200,8 @@ class TXT():
         self.f.write("\n")
 
     def __del__(self):
-        self.f.close()
+        if hasattr(self, 'f'):
+            self.f.close()
 
 if __name__ == '__main__':
     e = Epub("test", "adw")
